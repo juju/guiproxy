@@ -152,6 +152,7 @@ var juju_config = {
     "socketTemplate": "/model/$uuid/api",
     "socket_protocol": "ws",
     "charmstoreURL": "https://api.jujucharms.com/charmstore/",
+    "bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
     "plansURL": "https://api.jujucharms.com/omnibus/",
     "termsURL": "https://api.jujucharms.com/terms/",
     "interactiveLogin": true,
