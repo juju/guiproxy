@@ -160,6 +160,6 @@ var juju_config = {
     "container": "#main",
     "viewContainer": "#main",
     "consoleEnabled": true,
-    "serverRouting": false,
+    "serverRouting": false
 };
 `))
