@@ -5,17 +5,17 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/frankban/guiproxy/juju"
+	"github.com/frankban/guiproxy/internal/juju"
+	it "github.com/frankban/guiproxy/internal/testing"
 )
 
 func TestInfo(t *testing.T) {
 	// Set up a test server.
 	ts := httptest.NewServer(newJujuServer())
-	serverURL := mustParseURL(ts.URL)
+	serverURL := it.MustParseURL(t, ts.URL)
 
 	// Define the tests.
 	infoTests := []struct {
@@ -95,9 +95,9 @@ func TestInfo(t *testing.T) {
 			restore := patchCommand(t, []byte(test.commandOut), test.commandErr)
 			defer restore()
 			controllerAddr, modelUUID, err := juju.Info(test.controllerAddr, test.modelUUID)
-			assertError(t, err, test.expectedError)
-			assertEqual(t, controllerAddr, test.expectedControllerAddr)
-			assertEqual(t, modelUUID, test.expectedModelUUID)
+			it.AssertError(t, err, test.expectedError)
+			it.AssertString(t, controllerAddr, test.expectedControllerAddr)
+			it.AssertString(t, modelUUID, test.expectedModelUUID)
 		})
 	}
 
@@ -116,8 +116,8 @@ func newJujuServer() http.Handler {
 func patchCommand(t *testing.T, out []byte, err error) (restore func()) {
 	original := *juju.ExecCommand
 	*juju.ExecCommand = func(name string, args ...string) ([]byte, error) {
-		assertEqual(t, name, "juju")
-		assertEqual(t, strings.Join(args, " "), "show-controller --format json")
+		it.AssertString(t, name, "juju")
+		it.AssertString(t, strings.Join(args, " "), "show-controller --format json")
 		return out, err
 	}
 	return func() {
@@ -149,33 +149,4 @@ func makeControllerInfo(addrs []string, models map[string]string, current string
 		panic(err)
 	}
 	return string(b)
-}
-
-// assertEqual fails if the given strings are not equal.
-func assertEqual(t *testing.T, obtained, expected string) {
-	if obtained != expected {
-		t.Fatalf("\n%q !=\n%q", obtained, expected)
-	}
-}
-
-// assertError fails if the given errors are not equal.
-func assertError(t *testing.T, obtained, expected error) {
-	if obtained == nil && expected == nil {
-		return
-	}
-	if obtained == nil || expected == nil {
-		t.Fatalf("\n%v !=\n%v", obtained, expected)
-	}
-	if !strings.HasPrefix(obtained.Error(), expected.Error()) {
-		t.Fatalf("\n%v !=\n%v", obtained, expected)
-	}
-}
-
-// mustParseURL parses the given URL, and panics if it is not parsable.
-func mustParseURL(rawurl string) *url.URL {
-	u, err := url.Parse(rawurl)
-	if err != nil {
-		panic(err)
-	}
-	return u
 }

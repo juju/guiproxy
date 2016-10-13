@@ -1,12 +1,12 @@
-package proxy
+package server
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
+
+// colorFunc is a function that colorizes the given string.
+type colorFunc func(string) string
 
 // mkColor is used to create color functions.
-func mkColor(color int) func(string) string {
+func mkColor(color int) colorFunc {
 	return func(msg string) string {
 		return fmt.Sprintf("\033[38;5;%dm%s\033[00m", color, msg)
 	}
@@ -20,16 +20,14 @@ var (
 )
 
 // logColors returns the color functions to use for incoming and outgoing API
-// logger messages. It receives the path to which the connection has been made
+// logger messages. It receives whether the connection has been made to a model
 // and a boolean flag used to disable colors.
-func logColors(path string, noColor bool) (inColor func(string) string, outColor func(string) string) {
+func logColors(isModel, noColor bool) (inColor, outColor colorFunc) {
 	if noColor {
 		return nil, nil
 	}
-	if strings.HasPrefix(path, "/model/") {
-		// This is a model connection.
+	if isModel {
 		return lightGreen, green
 	}
-	// This is a controller connection.
 	return lightBlue, blue
 }

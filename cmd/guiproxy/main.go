@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frankban/guiproxy/juju"
-	"github.com/frankban/guiproxy/proxy"
+	"github.com/frankban/guiproxy/internal/juju"
+	"github.com/frankban/guiproxy/server"
 )
 
 // main starts the proxy server.
@@ -32,7 +32,7 @@ func main() {
 	log.Printf("model: %s\n", modelUUID)
 
 	// Set up the HTTP server.
-	server := proxy.New(proxy.Params{
+	srv := server.New(server.Params{
 		ControllerAddr: controllerAddr,
 		ModelUUID:      modelUUID,
 		OriginAddr:     "http://localhost" + listenAddr,
@@ -43,8 +43,8 @@ func main() {
 
 	// Start the GUI proxy server.
 	log.Println("starting the server\n")
-	log.Printf("visit the GUI at http://0.0.0.0:%d/\n", options.port)
-	if err := http.ListenAndServe(listenAddr, server); err != nil {
+	log.Printf("visit the GUI at http://localhost:%d/\n", options.port)
+	if err := http.ListenAndServe(listenAddr, srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
 	}
 }

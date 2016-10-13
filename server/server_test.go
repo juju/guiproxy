@@ -1,72 +1,75 @@
-package proxy_test
+package server_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"golang.org/x/net/websocket"
 
-	"github.com/frankban/guiproxy/proxy"
+	it "github.com/frankban/guiproxy/internal/testing"
+	"github.com/frankban/guiproxy/server"
 )
 
 func TestNew(t *testing.T) {
 	// Set up test servers.
 	gui := httptest.NewServer(newGUIServer())
+	defer gui.Close()
+
 	juju := httptest.NewTLSServer(newJujuServer())
-	jujuURL := mustParseURL(juju.URL)
-	ts := httptest.NewServer(proxy.New(proxy.Params{
+	defer juju.Close()
+
+	jujuURL := it.MustParseURL(t, juju.URL)
+	jujuParts := strings.Split(jujuURL.Host, ":")
+	ts := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
 		ModelUUID:      "example-uuid",
 		OriginAddr:     "http://1.2.3.4:4242",
 		Port:           4242,
-		GUIURL:         mustParseURL(gui.URL),
+		GUIURL:         it.MustParseURL(t, gui.URL),
 	}))
-	serverURL := mustParseURL(ts.URL)
+	defer ts.Close()
 
-	// Run the tests.
-	t.Run("testJujuWebSocketController", testJujuWebSocket(serverURL, "/api"))
-	t.Run("testJujuWebSocketModel1", testJujuWebSocket(serverURL, "/model/uuid/api"))
-	t.Run("testJujuWebSocketModel2", testJujuWebSocket(serverURL, "/model/another-uuid/api"))
+	serverURL := it.MustParseURL(t, ts.URL)
+	controllerPath := fmt.Sprintf("/controller/%s/%s/controller-api", jujuParts[0], jujuParts[1])
+	modelPath1 := fmt.Sprintf("/model/%s/%s/uuid/model-api", jujuParts[0], jujuParts[1])
+	modelPath2 := fmt.Sprintf("/model/%s/%s/another-uuid/model-api", jujuParts[0], jujuParts[1])
+
+	t.Run("testJujuWebSocketController", testJujuWebSocket(serverURL, "/api", controllerPath))
+	t.Run("testJujuWebSocketModel1", testJujuWebSocket(serverURL, "/model/uuid/api", modelPath1))
+	t.Run("testJujuWebSocketModel2", testJujuWebSocket(serverURL, "/model/another-uuid/api", modelPath2))
 	t.Run("testJujuHTTPS", testJujuHTTPS(serverURL))
-	t.Run("testGUIConfig", testGUIConfig(serverURL))
+	t.Run("testGUIConfig", testGUIConfig(serverURL, jujuURL))
 	t.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
-
-	// Tear down test servers.
-	ts.Close()
-	juju.Close()
-	gui.Close()
 }
 
-func testJujuWebSocket(serverURL *url.URL, path string) func(t *testing.T) {
+func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(t *testing.T) {
 	origin := "http://localhost/"
 	u := *serverURL
 	u.Scheme = "ws"
-	socketURL := u.String() + path
+	socketURL := u.String() + srcPath
 	return func(t *testing.T) {
 		// Connect to the remote WebSocket.
 		ws, err := websocket.Dial(socketURL, "", origin)
-		if err != nil {
-			t.Fatalf("cannot dial WebSocket at %s: %v", socketURL, err)
-		}
+		it.AssertError(t, err, nil)
 		defer ws.Close()
 		// Send a message.
 		msg := jsonMessage{
 			Request: "my api request",
 		}
-		if err = websocket.JSON.Send(ws, msg); err != nil {
-			t.Fatalf("cannot send message to %s: %v", socketURL, err)
-		}
+		err = websocket.JSON.Send(ws, msg)
+		it.AssertError(t, err, nil)
 		// Retrieve the response from the WebSocket server.
-		if err = websocket.JSON.Receive(ws, &msg); err != nil {
-			t.Fatalf("cannot retrieve response from %s: %v", socketURL, err)
-		}
-		assertEqual(t, msg.Request, "my api request")
-		assertEqual(t, msg.Response, path)
+		err = websocket.JSON.Receive(ws, &msg)
+		it.AssertError(t, err, nil)
+		it.AssertString(t, msg.Request, "my api request")
+		it.AssertString(t, msg.Response, dstPath)
 	}
 }
 
@@ -74,9 +77,7 @@ func testJujuHTTPS(serverURL *url.URL) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Make the HTTP request to retrieve a Juju HTTPS API endpoint.
 		resp, err := http.Get(serverURL.String() + "/juju-core/api/path")
-		if err != nil {
-			t.Fatalf("cannot send the request to get Juju endpoint: %v", err)
-		}
+		it.AssertError(t, err, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
 		if resp.StatusCode != http.StatusOK {
@@ -84,20 +85,16 @@ func testJujuHTTPS(serverURL *url.URL) func(t *testing.T) {
 		}
 		// The response body includes the expected content.
 		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("cannot read Juju endpoint response body: %v", err)
-		}
-		assertEqual(t, string(b), "juju: /api/path")
+		it.AssertError(t, err, nil)
+		it.AssertString(t, string(b), "juju: /api/path")
 	}
 }
 
-func testGUIConfig(serverURL *url.URL) func(t *testing.T) {
+func testGUIConfig(serverURL, jujuURL *url.URL) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Make the HTTP request to retrieve the GUI configuration file.
 		resp, err := http.Get(serverURL.String() + "/config.js")
-		if err != nil {
-			t.Fatalf("cannot send the request to get config.js: %v", err)
-		}
+		it.AssertError(t, err, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
 		if resp.StatusCode != http.StatusOK {
@@ -105,18 +102,15 @@ func testGUIConfig(serverURL *url.URL) func(t *testing.T) {
 		}
 		// The response body includes the GUI configuration.
 		var expected bytes.Buffer
-		err = proxy.ConfigTemplate.Execute(&expected, map[string]interface{}{
+		err = server.ConfigTemplate.Execute(&expected, map[string]interface{}{
+			"addr": jujuURL.Host,
 			"port": 4242,
 			"uuid": "example-uuid",
 		})
-		if err != nil {
-			t.Fatalf("cannot render the configuration template: %v", err)
-		}
+		it.AssertError(t, err, nil)
 		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("cannot read config.js response body: %v", err)
-		}
-		assertEqual(t, string(b), expected.String())
+		it.AssertError(t, err, nil)
+		it.AssertString(t, string(b), expected.String())
 	}
 }
 
@@ -124,9 +118,7 @@ func testGUIStaticFiles(serverURL *url.URL) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Make the HTTP request to retrieve a GUI static file.
 		resp, err := http.Get(serverURL.String() + "/my/path")
-		if err != nil {
-			t.Fatalf("cannot send the request to get a GUI static file: %v", err)
-		}
+		it.AssertError(t, err, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
 		if resp.StatusCode != http.StatusOK {
@@ -134,10 +126,8 @@ func testGUIStaticFiles(serverURL *url.URL) func(t *testing.T) {
 		}
 		// The response body includes the expected content.
 		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("cannot read static file response body: %v", err)
-		}
-		assertEqual(t, string(b), "gui: /my/path")
+		it.AssertError(t, err, nil)
+		it.AssertString(t, string(b), "gui: /my/path")
 	}
 }
 
@@ -187,20 +177,4 @@ func echoHandler(ws *websocket.Conn) {
 type jsonMessage struct {
 	Request  string
 	Response string
-}
-
-// assertEqual fails if the given strings are not equal.
-func assertEqual(t *testing.T, obtained, expected string) {
-	if obtained != expected {
-		t.Fatalf("\n%q !=\n%q", obtained, expected)
-	}
-}
-
-// mustParseURL parses the given URL, and panics if it is not parsable.
-func mustParseURL(rawurl string) *url.URL {
-	u, err := url.Parse(rawurl)
-	if err != nil {
-		panic(err)
-	}
-	return u
 }

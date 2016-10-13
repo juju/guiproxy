@@ -5,15 +5,29 @@ import (
 	"strings"
 	"testing"
 
+	it "github.com/frankban/guiproxy/internal/testing"
 	"github.com/frankban/guiproxy/logger"
 )
 
 func TestPrint(t *testing.T) {
 	restore, getOutput := patchLogPrintln()
 	defer restore()
-	l := logger.New("my prefix", strings.ToUpper)
+	l := logger.New()
 	l.Print("these are the voyages")
-	assertEqual(t, getOutput(), "MY PREFIX: THESE ARE THE VOYAGES\n")
+	it.AssertString(t, getOutput(), "these are the voyages\n")
+}
+
+func TestModifiers(t *testing.T) {
+	restore, getOutput := patchLogPrintln()
+	defer restore()
+	l := logger.New(logger.AddPrefix("my prefix"), strings.ToUpper)
+	l.Print("of the starship enterprise")
+	it.AssertString(t, getOutput(), "MY PREFIX: OF THE STARSHIP ENTERPRISE\n")
+}
+
+func TestAddPrefix(t *testing.T) {
+	f := logger.AddPrefix(">>> answer")
+	it.AssertString(t, f("42"), ">>> answer: 42")
 }
 
 // patchLogPrintln patches the logger.LogPrintln variable so that it is
@@ -31,11 +45,4 @@ func patchLogPrintln() (restore func(), getOutput func() string) {
 		return output
 	}
 	return restore, getOutput
-}
-
-// assertEqual fails if the given strings are not equal.
-func assertEqual(t *testing.T, obtained, expected string) {
-	if obtained != expected {
-		t.Fatalf("\n%q !=\n%q", obtained, expected)
-	}
 }
