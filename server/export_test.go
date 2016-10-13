@@ -1,4 +1,4 @@
-package proxy
+package server
 
 var (
 	ConfigTemplate = configTemplate
