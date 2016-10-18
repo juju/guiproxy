@@ -87,7 +87,7 @@ const dialTimeout = 10 * time.Second
 // TCP connections.
 func chooseAddress(addrs []string) (string, error) {
 	numAddrs := len(addrs)
-	addrCh := make(chan string)
+	addrCh := make(chan string, numAddrs)
 	errCh := make(chan error, numAddrs)
 	for _, addr := range addrs {
 		go func(addr string) {
