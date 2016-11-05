@@ -7,12 +7,18 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/frankban/guiproxy/internal/juju"
 	"github.com/frankban/guiproxy/server"
 )
+
+// version holds the guiproxy program version.
+const version = "0.1.0"
+
+var program = filepath.Base(os.Args[0])
 
 // main starts the proxy server.
 func main() {
@@ -21,7 +27,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("cannot parse configuration options: %s", err)
 	}
-	log.Printf("configuring the server\n")
+	log.Printf("%s %s\n", program, version)
+	log.Println("configuring the server")
 	listenAddr := ":" + strconv.Itoa(options.port)
 	controllerAddr, modelUUID, err := juju.Info(options.controllerAddr, options.modelUUID)
 	if err != nil {
@@ -29,7 +36,12 @@ func main() {
 	}
 	log.Printf("GUI sandbox: %s\n", options.guiURL)
 	log.Printf("controller: %s\n", controllerAddr)
-	log.Printf("model: %s\n", modelUUID)
+	if modelUUID != "" {
+		log.Printf("model: %s\n", modelUUID)
+	}
+	if options.legacyJuju {
+		log.Println("using Juju 1")
+	}
 
 	// Set up the HTTP server.
 	srv := server.New(server.Params{
@@ -38,6 +50,7 @@ func main() {
 		OriginAddr:     "http://localhost" + listenAddr,
 		Port:           options.port,
 		GUIURL:         options.guiURL,
+		LegacyJuju:     options.legacyJuju,
 		NoColor:        options.noColor,
 	})
 
@@ -56,6 +69,7 @@ func parseOptions() (*config, error) {
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", "controller address (defaults to the address of the current controller)")
 	modelUUID := flag.String("uuid", "", "model uuid (defaults to the uuid of the current model)")
+	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()
 	if !strings.HasPrefix(*guiAddr, "http") {
@@ -70,6 +84,7 @@ func parseOptions() (*config, error) {
 		guiURL:         guiURL,
 		controllerAddr: *controllerAddr,
 		modelUUID:      *modelUUID,
+		legacyJuju:     *legacyJuju,
 		noColor:        *noColor,
 	}, nil
 }
@@ -85,12 +100,12 @@ type config struct {
 	guiURL         *url.URL
 	controllerAddr string
 	modelUUID      string
+	legacyJuju     bool
 	noColor        bool
 }
 
 // usage provides the command help and usage information.
 func usage() {
-	program := os.Args[0]
 	fmt.Fprintf(os.Stderr, "The %s command proxies WebSocket requests from the GUI sandbox to a Juju controller.\n", program)
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", program)
 	flag.PrintDefaults()

@@ -21,32 +21,58 @@ func TestNew(t *testing.T) {
 	// Set up test servers.
 	gui := httptest.NewServer(newGUIServer())
 	defer gui.Close()
+	guiURL := it.MustParseURL(t, gui.URL)
 
 	juju := httptest.NewTLSServer(newJujuServer())
 	defer juju.Close()
-
 	jujuURL := it.MustParseURL(t, juju.URL)
-	jujuParts := strings.Split(jujuURL.Host, ":")
-	ts := httptest.NewServer(server.New(server.Params{
+
+	legacyJuju := httptest.NewTLSServer(newLegacyJujuServer())
+	defer legacyJuju.Close()
+	legacyJujuURL := it.MustParseURL(t, legacyJuju.URL)
+
+	proxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
 		ModelUUID:      "example-uuid",
 		OriginAddr:     "http://1.2.3.4:4242",
 		Port:           4242,
-		GUIURL:         it.MustParseURL(t, gui.URL),
+		GUIURL:         guiURL,
 	}))
-	defer ts.Close()
+	defer proxy.Close()
+	serverURL := it.MustParseURL(t, proxy.URL)
 
-	serverURL := it.MustParseURL(t, ts.URL)
+	legacyProxy := httptest.NewServer(server.New(server.Params{
+		ControllerAddr: legacyJujuURL.Host,
+		ModelUUID:      "example-uuid",
+		OriginAddr:     "http://1.2.3.4:4242",
+		Port:           4242,
+		GUIURL:         guiURL,
+		LegacyJuju:     true,
+	}))
+	defer proxy.Close()
+	legacyServerURL := it.MustParseURL(t, legacyProxy.URL)
+
+	jujuParts := strings.Split(jujuURL.Host, ":")
 	controllerPath := fmt.Sprintf("/controller/%s/%s/controller-api", jujuParts[0], jujuParts[1])
 	modelPath1 := fmt.Sprintf("/model/%s/%s/uuid/model-api", jujuParts[0], jujuParts[1])
 	modelPath2 := fmt.Sprintf("/model/%s/%s/another-uuid/model-api", jujuParts[0], jujuParts[1])
 
-	t.Run("testJujuWebSocketController", testJujuWebSocket(serverURL, "/api", controllerPath))
-	t.Run("testJujuWebSocketModel1", testJujuWebSocket(serverURL, "/model/uuid/api", modelPath1))
-	t.Run("testJujuWebSocketModel2", testJujuWebSocket(serverURL, "/model/another-uuid/api", modelPath2))
+	legacyJujuParts := strings.Split(legacyJujuURL.Host, ":")
+	legacyModelPath := fmt.Sprintf("/model/%s/%s/model-api", legacyJujuParts[0], legacyJujuParts[1])
+
+	t.Run("testJujuWebSocket Controller", testJujuWebSocket(serverURL, "/api", controllerPath))
+	t.Run("testJujuWebSocket Model1", testJujuWebSocket(serverURL, "/model/uuid/api", modelPath1))
+	t.Run("testJujuWebSocket Model2", testJujuWebSocket(serverURL, "/model/another-uuid/api", modelPath2))
+	t.Run("testJujuWebSocket Legacy", testJujuWebSocket(legacyServerURL, "/", legacyModelPath))
+
 	t.Run("testJujuHTTPS", testJujuHTTPS(serverURL))
-	t.Run("testGUIConfig", testGUIConfig(serverURL, jujuURL))
+	t.Run("testJujuHTTPS Legacy", testJujuHTTPS(legacyServerURL))
+
+	t.Run("testGUIConfig", testGUIConfig(serverURL, jujuURL, server.ControllerSrcTemplate, server.ModelSrcTemplate, server.JujuVersion))
+	t.Run("testGUIConfig Legacy", testGUIConfig(legacyServerURL, legacyJujuURL, "", server.LegacyModelSrcTemplate, server.LegacyJujuVersion))
+
 	t.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
+	t.Run("testGUIStaticFiles Legacy", testGUIStaticFiles(legacyServerURL))
 }
 
 func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(t *testing.T) {
@@ -90,7 +116,7 @@ func testJujuHTTPS(serverURL *url.URL) func(t *testing.T) {
 	}
 }
 
-func testGUIConfig(serverURL, jujuURL *url.URL) func(t *testing.T) {
+func testGUIConfig(serverURL, jujuURL *url.URL, expectedControllerTemplate, expectedModelTemplate, expectedVersion string) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Make the HTTP request to retrieve the GUI configuration file.
 		resp, err := http.Get(serverURL.String() + "/config.js")
@@ -103,9 +129,12 @@ func testGUIConfig(serverURL, jujuURL *url.URL) func(t *testing.T) {
 		// The response body includes the GUI configuration.
 		var expected bytes.Buffer
 		err = server.ConfigTemplate.Execute(&expected, map[string]interface{}{
-			"addr": jujuURL.Host,
-			"port": 4242,
-			"uuid": "example-uuid",
+			"addr":       jujuURL.Host,
+			"controller": expectedControllerTemplate,
+			"model":      expectedModelTemplate,
+			"port":       4242,
+			"uuid":       "example-uuid",
+			"version":    expectedVersion,
 		})
 		it.AssertError(t, err, nil)
 		b, err := ioutil.ReadAll(resp.Body)
@@ -141,13 +170,24 @@ func newGUIServer() http.Handler {
 	return mux
 }
 
-// newTestServer creates and returns a new test server simulating a remote Juju
+// newJujuServer creates and returns a new test server simulating a remote Juju
 // controller and model.
 func newJujuServer() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api", websocket.Handler(echoHandler))
 	mux.Handle("/model/", websocket.Handler(echoHandler))
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		io.WriteString(w, "juju: "+req.URL.Path)
+	})
+	return mux
+}
+
+// newLegacyJujuServer creates and returns a new test server simulating a
+// remote Juju 1 model.
+func newLegacyJujuServer() http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/", websocket.Handler(echoHandler))
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, req *http.Request) {
 		io.WriteString(w, "juju: "+req.URL.Path)
 	})
 	return mux
