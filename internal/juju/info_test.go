@@ -86,15 +86,19 @@ func TestInfo(t *testing.T) {
 		expectedControllerAddr: serverURL.Host,
 		expectedModelUUID:      "uuid42",
 	}, {
+		about:          "invalid address from input",
+		controllerAddr: ":::",
+		expectedError:  errors.New("cannot connect to the Juju controller: dial tcp:"),
+	}, {
 		about:                  "success from input",
-		controllerAddr:         "1.2.3.4:4242",
+		controllerAddr:         serverURL.Host,
 		modelUUID:              "uuid42",
-		expectedControllerAddr: "1.2.3.4:4242",
+		expectedControllerAddr: serverURL.Host,
 		expectedModelUUID:      "uuid42",
 	}, {
 		about:                  "success from input: no model uuid",
-		controllerAddr:         "1.2.3.4:4242",
-		expectedControllerAddr: "1.2.3.4:4242",
+		controllerAddr:         serverURL.Host,
+		expectedControllerAddr: serverURL.Host,
 	}}
 
 	// Run the tests.

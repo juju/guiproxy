@@ -15,6 +15,10 @@ import (
 // current active model is returned.
 func Info(controllerAddr, modelUUID string) (string, string, error) {
 	if controllerAddr != "" {
+		controllerAddr, err := chooseAddress([]string{controllerAddr})
+		if err != nil {
+			return "", "", fmt.Errorf("cannot connect to the Juju controller: %s", err)
+		}
 		return controllerAddr, modelUUID, nil
 	}
 
