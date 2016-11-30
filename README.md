@@ -16,4 +16,4 @@ Run `go get github.com/frankban/guiproxy`.
 - Run `guiproxy` and point your browser to the link suggested by the server.
 - Enjoy!
 
-Run `jujugui -h` for instructions on how to customize the GUI proxy server.
+Run `guiproxy -h` for instructions on how to customize the GUI proxy server.
