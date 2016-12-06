@@ -16,7 +16,7 @@ import (
 )
 
 // version holds the guiproxy program version.
-const version = "0.1.0"
+const version = "0.2.0"
 
 var program = filepath.Base(os.Args[0])
 
@@ -68,7 +68,7 @@ func parseOptions() (*config, error) {
 	port := flag.Int("port", defaultPort, "GUI proxy server port")
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", "controller address (defaults to the address of the current controller)")
-	modelUUID := flag.String("uuid", "", "model uuid (defaults to the uuid of the current model)")
+	modelUUID := flag.String("uuid", "", fmt.Sprintf("model uuid (defaults to the uuid of the current model); provide %q to also enable GISF in the GUI config", server.DisconnectedUUID))
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()

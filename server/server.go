@@ -19,6 +19,10 @@ import (
 )
 
 const (
+	// DisconnectedUUID holds the model unique identifier provided to the GUI
+	// when disconnected mode is enabled.
+	DisconnectedUUID = "disconnected"
+
 	// controllerSrcTemplate, controllerDstTemplate, modelSrcTemplate and
 	// modelDstTemplate hold templates to be provided and used by the Juju GUI
 	// in order to establish WebSocket connections.
@@ -173,6 +177,7 @@ func serveConfig(addr, uuid string, port int, legacyJuju bool) func(w http.Respo
 	ctx := map[string]interface{}{
 		"addr":       addr,
 		"controller": controller,
+		"gisf":       uuid == DisconnectedUUID,
 		"model":      model,
 		"port":       port,
 		"uuid":       uuid,
@@ -196,6 +201,7 @@ var juju_config = {
     apiAddress: '{{.addr}}',
     controllerSocketTemplate: '{{.controller}}',
     socketTemplate: '{{.model}}',
+    gisf: {{.gisf}},
     socket_protocol: 'ws',
     charmstoreURL: 'https://api.jujucharms.com/charmstore/',
     bundleServiceURL: 'https://api.jujucharms.com/bundleservice/',
