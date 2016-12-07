@@ -56,7 +56,7 @@ func New(p Params) http.Handler {
 	}
 	mux.Handle("/model/", websocket.Handler(serveModel))
 	mux.Handle("/juju-core/", http.StripPrefix("/juju-core/", newTLSReverseProxy(p.ControllerAddr)))
-	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.ModelUUID, p.Port, p.LegacyJuju))
+	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.ModelUUID, p.LegacyJuju))
 	mux.Handle("/", httputil.NewSingleHostReverseProxy(p.GUIURL))
 	return mux
 }
@@ -71,9 +71,6 @@ type Params struct {
 
 	// OriginAddr holds the address from which the WebSocket request is made.
 	OriginAddr string
-
-	// Port holds the port number on which the server will be listening.
-	Port int
 
 	// GUIURL holds the URL on which the GUI sandbox instance is listening.
 	GUIURL *url.URL
@@ -166,8 +163,8 @@ func wsConnect(addr, origin string) (*websocket.Conn, error) {
 
 // serveConfig returns an HTTP handler that serves the Juju GUI JavaScript
 // configuration file. The configuration is dynamically generated using the
-// given controller address, model UUID and guiproxy port.
-func serveConfig(addr, uuid string, port int, legacyJuju bool) func(w http.ResponseWriter, req *http.Request) {
+// given controller address, model UUID and whether a legacy Juju is in use.
+func serveConfig(addr, uuid string, legacyJuju bool) func(w http.ResponseWriter, req *http.Request) {
 	controller, model := controllerSrcTemplate, modelSrcTemplate
 	version := jujuVersion
 	if legacyJuju {
@@ -179,7 +176,6 @@ func serveConfig(addr, uuid string, port int, legacyJuju bool) func(w http.Respo
 		"controller": controller,
 		"gisf":       uuid == DisconnectedUUID,
 		"model":      model,
-		"port":       port,
 		"uuid":       uuid,
 		"version":    version,
 	}
@@ -195,7 +191,7 @@ var jsMimeType = mime.TypeByExtension(".js")
 // configTemplate holds the template used to render the GUI configuration.
 var configTemplate = template.Must(template.New("config").Parse(`
 var juju_config = {
-    baseUrl: 'http://0.0.0.0:{{.port}}/',
+    baseUrl: '/',
     jujuCoreVersion: '{{.version}}',
     jujuEnvUUID: '{{.uuid}}',
     apiAddress: '{{.addr}}',

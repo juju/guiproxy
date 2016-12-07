@@ -35,7 +35,6 @@ func TestNew(t *testing.T) {
 		ControllerAddr: jujuURL.Host,
 		ModelUUID:      "example-uuid",
 		OriginAddr:     "http://1.2.3.4:4242",
-		Port:           4242,
 		GUIURL:         guiURL,
 	}))
 	defer proxy.Close()
@@ -45,7 +44,6 @@ func TestNew(t *testing.T) {
 		ControllerAddr: legacyJujuURL.Host,
 		ModelUUID:      "example-legacy-uuid",
 		OriginAddr:     "http://1.2.3.4:4242",
-		Port:           4242,
 		GUIURL:         guiURL,
 		LegacyJuju:     true,
 	}))
@@ -56,7 +54,6 @@ func TestNew(t *testing.T) {
 		ControllerAddr: jujuURL.Host,
 		ModelUUID:      server.DisconnectedUUID,
 		OriginAddr:     "http://1.2.3.4:4242",
-		Port:           4242,
 		GUIURL:         guiURL,
 	}))
 	defer disconnectedProxy.Close()
@@ -165,7 +162,6 @@ func testGUIConfig(p guiConfigParams) func(t *testing.T) {
 			"controller": p.expectedControllerTemplate,
 			"gisf":       p.expectedGISF,
 			"model":      p.expectedModelTemplate,
-			"port":       4242,
 			"uuid":       p.expectedUUID,
 			"version":    p.expectedVersion,
 		})

@@ -48,7 +48,6 @@ func main() {
 		ControllerAddr: controllerAddr,
 		ModelUUID:      modelUUID,
 		OriginAddr:     "http://localhost" + listenAddr,
-		Port:           options.port,
 		GUIURL:         options.guiURL,
 		LegacyJuju:     options.legacyJuju,
 		NoColor:        options.noColor,
