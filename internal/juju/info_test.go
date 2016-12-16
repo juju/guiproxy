@@ -70,6 +70,13 @@ func TestInfo(t *testing.T) {
 		expectedControllerAddr: serverURL.Host,
 		expectedModelUUID:      "uuid47",
 	}, {
+		about: "success from juju: no current model",
+		commandOut: makeControllerInfo([]string{serverURL.Host}, map[string]string{
+			"model42": "uuid42",
+			"model47": "uuid47",
+		}, ""),
+		expectedControllerAddr: serverURL.Host,
+	}, {
 		about: "success from juju: multiple addresses",
 		commandOut: makeControllerInfo([]string{"::::", serverURL.Host, ":::"}, map[string]string{
 			"model42": "uuid42",

@@ -44,7 +44,7 @@ func Info(controllerAddr, modelUUID string) (string, string, error) {
 	}
 
 	// Retrieve the model unique identifier.
-	if modelUUID == "" {
+	if modelUUID == "" && info.Current != "" {
 		parts := strings.SplitN(info.Current, "/", 2)
 		if len(parts) != 2 {
 			return "", "", fmt.Errorf("invalid model name in controller info: %q", out)
