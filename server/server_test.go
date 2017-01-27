@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -50,14 +49,21 @@ func TestNew(t *testing.T) {
 	defer proxy.Close()
 	legacyServerURL := it.MustParseURL(t, legacyProxy.URL)
 
-	disconnectedProxy := httptest.NewServer(server.New(server.Params{
+	customConfigProxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
-		ModelUUID:      server.DisconnectedUUID,
+		ModelUUID:      "",
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
+		GUIConfig: map[string]interface{}{
+			"answer":          42,
+			"baseUrl":         "/",
+			"container":       "#different-one",
+			"gisf":            true,
+			"jujuCoreVersion": "42.47.0",
+		},
 	}))
-	defer disconnectedProxy.Close()
-	disconnectedServerURL := it.MustParseURL(t, disconnectedProxy.URL)
+	defer customConfigProxy.Close()
+	customConfigServerURL := it.MustParseURL(t, customConfigProxy.URL)
 
 	jujuParts := strings.Split(jujuURL.Host, ":")
 	controllerPath := fmt.Sprintf("/controller/%s/%s/controller-api", jujuParts[0], jujuParts[1])
@@ -75,30 +81,35 @@ func TestNew(t *testing.T) {
 	t.Run("testJujuHTTPS", testJujuHTTPS(serverURL))
 	t.Run("testJujuHTTPS Legacy", testJujuHTTPS(legacyServerURL))
 
-	t.Run("testGUIConfig", testGUIConfig(guiConfigParams{
-		serverURL:                  serverURL,
-		jujuURL:                    jujuURL,
-		expectedControllerTemplate: server.ControllerSrcTemplate,
-		expectedModelTemplate:      server.ModelSrcTemplate,
-		expectedUUID:               "example-uuid",
-		expectedVersion:            server.JujuVersion,
-	}))
-	t.Run("testGUIConfig Legacy", testGUIConfig(guiConfigParams{
-		serverURL:             legacyServerURL,
-		jujuURL:               legacyJujuURL,
-		expectedModelTemplate: server.LegacyModelSrcTemplate,
-		expectedUUID:          "example-legacy-uuid",
-		expectedVersion:       server.LegacyJujuVersion,
-	}))
-	t.Run("testGUIConfig disconnected", testGUIConfig(guiConfigParams{
-		serverURL:                  disconnectedServerURL,
-		jujuURL:                    jujuURL,
-		expectedControllerTemplate: server.ControllerSrcTemplate,
-		expectedModelTemplate:      server.ModelSrcTemplate,
-		expectedGISF:               true,
-		expectedUUID:               server.DisconnectedUUID,
-		expectedVersion:            server.JujuVersion,
-	}))
+	t.Run("testGUIConfig", testGUIConfig(
+		serverURL,
+		fmt.Sprintf(`"controllerSocketTemplate": "%s"`, server.ControllerSrcTemplate),
+		fmt.Sprintf(`"socketTemplate": "%s"`, server.ModelSrcTemplate),
+		fmt.Sprintf(`"apiAddress": "%s"`, jujuURL.Host),
+		fmt.Sprintf(`"jujuCoreVersion": "%s"`, server.JujuVersion),
+		`"jujuEnvUUID": "example-uuid"`,
+		`"gisf": false`,
+	))
+	t.Run("testGUIConfig Legacy", testGUIConfig(
+		legacyServerURL,
+		`"controllerSocketTemplate": ""`,
+		fmt.Sprintf(`"socketTemplate": "%s"`, server.LegacyModelSrcTemplate),
+		fmt.Sprintf(`"apiAddress": "%s"`, legacyJujuURL.Host),
+		fmt.Sprintf(`"jujuCoreVersion": "%s"`, server.LegacyJujuVersion),
+		`"jujuEnvUUID": "example-legacy-uuid"`,
+	))
+	t.Run("testGUIConfig Customized", testGUIConfig(
+		customConfigServerURL,
+		fmt.Sprintf(`"controllerSocketTemplate": "%s"`, server.ControllerSrcTemplate),
+		fmt.Sprintf(`"socketTemplate": "%s"`, server.ModelSrcTemplate),
+		fmt.Sprintf(`"apiAddress": "%s"`, jujuURL.Host),
+		`"answer": 42`,
+		`"baseUrl": "/"`,
+		`"container": "#different-one"`,
+		`"gisf": true`,
+		`"jujuCoreVersion": "42.47.0"`,
+		`"jujuEnvUUID": ""`,
+	))
 
 	t.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
 	t.Run("testGUIStaticFiles Legacy", testGUIStaticFiles(legacyServerURL))
@@ -145,30 +156,25 @@ func testJujuHTTPS(serverURL *url.URL) func(t *testing.T) {
 	}
 }
 
-func testGUIConfig(p guiConfigParams) func(t *testing.T) {
+func testGUIConfig(serverURL *url.URL, fragments ...string) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Make the HTTP request to retrieve the GUI configuration file.
-		resp, err := http.Get(p.serverURL.String() + "/config.js")
+		resp, err := http.Get(serverURL.String() + "/config.js")
 		it.AssertError(t, err, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("invalid response code from config.js: %v", resp.StatusCode)
 		}
-		// The response body includes the GUI configuration.
-		var expected bytes.Buffer
-		err = server.ConfigTemplate.Execute(&expected, map[string]interface{}{
-			"addr":       p.jujuURL.Host,
-			"controller": p.expectedControllerTemplate,
-			"gisf":       p.expectedGISF,
-			"model":      p.expectedModelTemplate,
-			"uuid":       p.expectedUUID,
-			"version":    p.expectedVersion,
-		})
-		it.AssertError(t, err, nil)
+		// The response body includes all the provided fragments.
 		b, err := ioutil.ReadAll(resp.Body)
 		it.AssertError(t, err, nil)
-		it.AssertString(t, string(b), expected.String())
+		cfg := string(b)
+		for _, fragment := range fragments {
+			if !strings.Contains(cfg, fragment) {
+				t.Fatalf("invalid GUI config: %q not included in %q", fragment, cfg)
+			}
+		}
 	}
 }
 
@@ -187,17 +193,6 @@ func testGUIStaticFiles(serverURL *url.URL) func(t *testing.T) {
 		it.AssertError(t, err, nil)
 		it.AssertString(t, string(b), "gui: /my/path")
 	}
-}
-
-// guiConfigParams holds params for calling testGUIConfig.
-type guiConfigParams struct {
-	serverURL                  *url.URL
-	jujuURL                    *url.URL
-	expectedControllerTemplate string
-	expectedModelTemplate      string
-	expectedGISF               bool
-	expectedUUID               string
-	expectedVersion            string
 }
 
 // newGUIServer creates and returns a new test server simulating a remote Juju

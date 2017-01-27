@@ -10,19 +10,15 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"text/template"
 
 	"golang.org/x/net/websocket"
 
+	"github.com/frankban/guiproxy/internal/guiconfig"
 	"github.com/frankban/guiproxy/logger"
 	"github.com/frankban/guiproxy/wsproxy"
 )
 
 const (
-	// DisconnectedUUID holds the model unique identifier provided to the GUI
-	// when disconnected mode is enabled.
-	DisconnectedUUID = "disconnected"
-
 	// controllerSrcTemplate, controllerDstTemplate, modelSrcTemplate and
 	// modelDstTemplate hold templates to be provided and used by the Juju GUI
 	// in order to establish WebSocket connections.
@@ -56,7 +52,7 @@ func New(p Params) http.Handler {
 	}
 	mux.Handle("/model/", websocket.Handler(serveModel))
 	mux.Handle("/juju-core/", http.StripPrefix("/juju-core/", newTLSReverseProxy(p.ControllerAddr)))
-	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.ModelUUID, p.LegacyJuju))
+	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.ModelUUID, p.GUIConfig, p.LegacyJuju))
 	mux.Handle("/", httputil.NewSingleHostReverseProxy(p.GUIURL))
 	return mux
 }
@@ -74,6 +70,10 @@ type Params struct {
 
 	// GUIURL holds the URL on which the GUI sandbox instance is listening.
 	GUIURL *url.URL
+
+	// GUIConfig holds the key/value pairs used to optionally override the
+	// predefined Juju GUI configuration file.
+	GUIConfig map[string]interface{}
 
 	// LegacyJuju holds whether the proxy is connected to a Juju 1 model.
 	LegacyJuju bool
@@ -164,50 +164,25 @@ func wsConnect(addr, origin string) (*websocket.Conn, error) {
 // serveConfig returns an HTTP handler that serves the Juju GUI JavaScript
 // configuration file. The configuration is dynamically generated using the
 // given controller address, model UUID and whether a legacy Juju is in use.
-func serveConfig(addr, uuid string, legacyJuju bool) func(w http.ResponseWriter, req *http.Request) {
+func serveConfig(addr, uuid string, configOverrides map[string]interface{}, legacyJuju bool) func(w http.ResponseWriter, req *http.Request) {
 	controller, model := controllerSrcTemplate, modelSrcTemplate
 	version := jujuVersion
 	if legacyJuju {
 		controller, model = "", legacyModelSrcTemplate
 		version = legacyJujuVersion
 	}
-	ctx := map[string]interface{}{
-		"addr":       addr,
-		"controller": controller,
-		"gisf":       uuid == DisconnectedUUID,
-		"model":      model,
-		"uuid":       uuid,
-		"version":    version,
-	}
+	cfg := guiconfig.New(guiconfig.Context{
+		Address:            addr,
+		UUID:               uuid,
+		JujuVersion:        version,
+		ControllerTemplate: controller,
+		ModelTemplate:      model,
+	}, configOverrides)
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", jsMimeType)
-		configTemplate.Execute(w, ctx)
+		fmt.Fprint(w, cfg)
 	}
 }
 
 // jsMimeType holds the mime type used to serve the GUI configuration.
 var jsMimeType = mime.TypeByExtension(".js")
-
-// configTemplate holds the template used to render the GUI configuration.
-var configTemplate = template.Must(template.New("config").Parse(`
-var juju_config = {
-    baseUrl: '/',
-    jujuCoreVersion: '{{.version}}',
-    jujuEnvUUID: '{{.uuid}}',
-    apiAddress: '{{.addr}}',
-    controllerSocketTemplate: '{{.controller}}',
-    socketTemplate: '{{.model}}',
-    gisf: {{.gisf}},
-    socket_protocol: 'ws',
-    charmstoreURL: 'https://api.jujucharms.com/charmstore/',
-    bundleServiceURL: 'https://api.jujucharms.com/bundleservice/',
-    plansURL: 'https://api.jujucharms.com/omnibus/',
-    termsURL: 'https://api.jujucharms.com/terms/',
-    interactiveLogin: true,
-    html5: true,
-    container: '#main',
-    viewContainer: '#main',
-    consoleEnabled: true,
-    serverRouting: false
-};
-`))

@@ -24,8 +24,9 @@ func AssertError(t *testing.T, obtained, expected error) {
 	if obtained == nil || expected == nil {
 		t.Fatalf("%s%v !=\n%v", caller(), obtained, expected)
 	}
-	if !strings.HasPrefix(obtained.Error(), expected.Error()) {
-		t.Fatalf("%s%v !=\n%v", caller(), obtained, expected)
+	obtainedErr, expectedErr := obtained.Error(), expected.Error()
+	if (obtainedErr != "" && expectedErr == "") || !strings.HasPrefix(obtainedErr, expectedErr) {
+		t.Fatalf("%s%q !=\n%q", caller(), obtainedErr, expectedErr)
 	}
 }
 

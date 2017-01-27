@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frankban/guiproxy/internal/guiconfig"
 	"github.com/frankban/guiproxy/internal/juju"
 	"github.com/frankban/guiproxy/server"
 )
@@ -42,6 +43,9 @@ func main() {
 	if options.legacyJuju {
 		log.Println("using Juju 1")
 	}
+	if len(options.guiConfig) != 0 {
+		log.Println("GUI config has been customized")
+	}
 
 	// Set up the HTTP server.
 	srv := server.New(server.Params{
@@ -49,6 +53,7 @@ func main() {
 		ModelUUID:      modelUUID,
 		OriginAddr:     "http://localhost" + listenAddr,
 		GUIURL:         options.guiURL,
+		GUIConfig:      options.guiConfig,
 		LegacyJuju:     options.legacyJuju,
 		NoColor:        options.noColor,
 	})
@@ -66,8 +71,12 @@ func parseOptions() (*config, error) {
 	flag.Usage = usage
 	port := flag.Int("port", defaultPort, "GUI proxy server port")
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
-	controllerAddr := flag.String("controller", "", "controller address (defaults to the address of the current controller)")
-	modelUUID := flag.String("uuid", "", fmt.Sprintf("model uuid (defaults to the uuid of the current model); provide %q to also enable GISF in the GUI config", server.DisconnectedUUID))
+	controllerAddr := flag.String("controller", "", `controller address (defaults to the address of the current controller), for instance:
+		-controller jimm.jujucharms.com:443`)
+	modelUUID := flag.String("uuid", "", fmt.Sprintf("model uuid (defaults to the uuid of the current model)"))
+	guiConfig := flag.String("config", "", fmt.Sprintf(`override or extend fields in the GUI configuration, for instance:
+		-config gisf:true
+		-config 'gisf: true, charmstoreURL: "https://1.2.3.4/cs"'`))
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()
@@ -78,11 +87,16 @@ func parseOptions() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI address: %s", err)
 	}
+	overrides, err := guiconfig.ParseOverrides(*guiConfig)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
+	}
 	return &config{
 		port:           *port,
 		guiURL:         guiURL,
 		controllerAddr: *controllerAddr,
 		modelUUID:      *modelUUID,
+		guiConfig:      overrides,
 		legacyJuju:     *legacyJuju,
 		noColor:        *noColor,
 	}, nil
@@ -99,6 +113,7 @@ type config struct {
 	guiURL         *url.URL
 	controllerAddr string
 	modelUUID      string
+	guiConfig      map[string]interface{}
 	legacyJuju     bool
 	noColor        bool
 }
