@@ -1,8 +1,7 @@
 package server
 
 var (
-	ConfigTemplate = configTemplate
-	MkColor        = mkColor
+	MkColor = mkColor
 
 	ControllerSrcTemplate  = controllerSrcTemplate
 	ModelSrcTemplate       = modelSrcTemplate
