@@ -39,7 +39,7 @@ func New(ctx Context, overrides map[string]interface{}) string {
 	for k, v := range overrides {
 		cfg[k] = v
 	}
-	b, err := json.MarshalIndent(&cfg, "", "  ")
+	b, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		// This should never happen.
 		panic(err)
@@ -86,7 +86,7 @@ func ParseOverrides(v string) (map[string]interface{}, error) {
 		if err := json.Unmarshal([]byte(val), &value); err != nil {
 			return nil, fmt.Errorf("invalid value for key %s: %v", key, err)
 		}
-		overrides[key] = value
+		overrides[key] = &value
 	}
 	return overrides, nil
 }
