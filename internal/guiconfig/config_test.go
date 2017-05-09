@@ -10,6 +10,65 @@ import (
 	it "github.com/frankban/guiproxy/internal/testing"
 )
 
+var newEnvironmentTests = []struct {
+	about          string
+	env            string
+	expectedValues map[string]interface{}
+	expectedError  error
+}{{
+	about: "production environment",
+	env:   "production",
+	expectedValues: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+	},
+}, {
+	about: "staging environment",
+	env:   "staging",
+	expectedValues: map[string]interface{}{
+		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
+		"plansURL":         "https://api.staging.jujucharms.com/plans/",
+		"termsURL":         "https://api.staging.jujucharms.com/terms/",
+	},
+}, {
+	about: "qa environment",
+	env:   "qa",
+	expectedValues: map[string]interface{}{
+		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
+		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
+		"plansURL":         "https://www.jujugui.org/plans/",
+		"termsURL":         "https://www.jujugui.org/terms/",
+	},
+}, {
+	about:          "none environment",
+	env:            "none",
+	expectedValues: map[string]interface{}{},
+}, {
+	about:         "invalid environment",
+	env:           "bad-wolf",
+	expectedError: errors.New(`invalid environment: "bad-wolf"`),
+}}
+
+func TestNewEnvironment(t *testing.T) {
+	for _, test := range newEnvironmentTests {
+		t.Run(test.about, func(t *testing.T) {
+			values, err := guiconfig.Environment(test.env)
+			var valuesInterfaces map[string]interface{}
+			if test.expectedValues != nil {
+				valuesInterfaces = make(map[string]interface{}, len(values))
+			}
+			for k, v := range values {
+				valuesInterfaces[k] = interface{}(v)
+			}
+			assertMap(t, valuesInterfaces, test.expectedValues)
+			it.AssertError(t, err, test.expectedError)
+		})
+	}
+}
+
 var newTests = []struct {
 	about             string
 	ctx               guiconfig.Context
@@ -82,13 +141,23 @@ func TestNew(t *testing.T) {
 	}
 }
 
-var parseOverridesTests = []struct {
+var ParseOverridesForEnvTests = []struct {
 	about             string
 	input             string
+	env               string
 	expectedOverrides map[string]interface{}
 	expectedError     error
 }{{
 	about: "no overrides",
+}, {
+	about: "with env",
+	env:   "production",
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+	},
 }, {
 	about: "success: single bool",
 	input: "gisf: true",
@@ -116,6 +185,10 @@ var parseOverridesTests = []struct {
 		"apiAddress": "1.2.3.4",
 		"gisf":       true,
 	},
+}, {}, {
+	about:         "failure: invalid environment",
+	env:           "bad-wolf",
+	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
 	about:         "failure: invalid pairs",
 	input:         "bad, wolf",
@@ -130,17 +203,20 @@ var parseOverridesTests = []struct {
 	expectedError: errors.New("invalid value for key gisf: invalid character"),
 }}
 
-func TestParseOverrides(t *testing.T) {
-	for _, test := range parseOverridesTests {
+func TestParseOverridesForEnv(t *testing.T) {
+	for _, test := range ParseOverridesForEnvTests {
+		if test.env == "" {
+			test.env = "none"
+		}
 		t.Run(test.about, func(t *testing.T) {
-			overrides, err := guiconfig.ParseOverrides(test.input)
-			assertOverrides(t, overrides, test.expectedOverrides)
+			overrides, err := guiconfig.ParseOverridesForEnv(test.env, test.input)
+			assertMap(t, overrides, test.expectedOverrides)
 			it.AssertError(t, err, test.expectedError)
 		})
 	}
 }
 
-func assertOverrides(t *testing.T, obtained, expected map[string]interface{}) {
+func assertMap(t *testing.T, obtained, expected map[string]interface{}) {
 	o, err := json.Marshal(obtained)
 	if err != nil {
 		t.Fatalf("cannot marshal obtained overrides: %s", err)

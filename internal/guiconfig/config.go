@@ -12,25 +12,29 @@ const (
 	separator = ","
 )
 
-var environments = map[string]map[string]string{
-	"production": map[string]string{
-		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
-		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
-		"plansURL":         "https://api.jujucharms.com/omnibus/",
-		"termsURL":         "https://api.jujucharms.com/terms/",
-	},
-	"staging": map[string]string{
-		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
-		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
-		"plansURL":         "https://api.staging.jujucharms.com/omnibus/",
-		"termsURL":         "https://api.staging.jujucharms.com/terms/",
-	},
-	"qa": map[string]string{
-		"charmstoreURL":    "https://api.jujugui.org/charmstore/",
-		"bundleServiceURL": "https://api.jujugui.org/bundleservice/",
-		"plansURL":         "https://api.jujugui.org/omnibus/",
-		"termsURL":         "https://api.jujugui.org/terms/",
-	},
+func environmentValues(url string) map[string]string {
+	url = strings.TrimRight(url, "/")
+	return map[string]string{
+		"bundleServiceURL": url + "/bundleservice/",
+		"charmstoreURL":    url + "/charmstore/",
+		"plansURL":         url + "/plans/",
+		"termsURL":         url + "/terms/",
+	}
+}
+
+func Environment(env string) (map[string]string, error) {
+	switch env {
+	case "production":
+		return environmentValues("https://api.jujucharms.com"), nil
+	case "staging":
+		return environmentValues("https://api.staging.jujucharms.com"), nil
+	case "qa":
+		return environmentValues("https://www.jujugui.org"), nil
+	case "none":
+		return map[string]string{}, nil
+	default:
+		return nil, fmt.Errorf("invalid environment: %q", env)
+	}
 }
 
 // New generates and returns the Juju GUI configuration file as a string, based
@@ -91,25 +95,33 @@ type Context struct {
 // `gisf: true; charmstoreURL: "https://1.2.3.4/cs"`.
 func ParseOverridesForEnv(env, v string) (map[string]interface{}, error) {
 	pairs := strings.Split(v, separator)
-	overrides := make(map[string]interface{}, len(pairs)+4)
-	for envKey, envValue := range environments[env] {
+	environment, err := Environment(env)
+	if err != nil {
+		return nil, err
+	}
+	overrides := make(map[string]interface{}, len(pairs)+len(environment))
+	for envKey, envValue := range environment {
 		overrides[envKey] = envValue
 	}
-	if v != "" {
-		for _, pair := range pairs {
-			pair = strings.TrimSpace(pair)
-			keyVal := strings.SplitN(pair, ":", 2)
-			if len(keyVal) != 2 {
-				return nil, fmt.Errorf("invalid key/value pair %q", pair)
-			}
-			key := strings.TrimSpace(keyVal[0])
-			val := strings.TrimSpace(keyVal[1])
-			var value json.RawMessage
-			if err := json.Unmarshal([]byte(val), &value); err != nil {
-				return nil, fmt.Errorf("invalid value for key %s: %v", key, err)
-			}
-			overrides[key] = &value
+	if v == "" {
+		if len(overrides) == 0 {
+			return nil, nil
 		}
+		return overrides, nil
+	}
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		keyVal := strings.SplitN(pair, ":", 2)
+		if len(keyVal) != 2 {
+			return nil, fmt.Errorf("invalid key/value pair %q", pair)
+		}
+		key := strings.TrimSpace(keyVal[0])
+		val := strings.TrimSpace(keyVal[1])
+		var value json.RawMessage
+		if err := json.Unmarshal([]byte(val), &value); err != nil {
+			return nil, fmt.Errorf("invalid value for key %s: %v", key, err)
+		}
+		overrides[key] = &value
 	}
 	return overrides, nil
 }

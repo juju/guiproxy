@@ -74,23 +74,21 @@ func parseOptions() (*config, error) {
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", `controller address (defaults to the address of the current controller), for instance:
 		-controller jimm.jujucharms.com:443`)
-	modelUUID := flag.String("uuid", "", fmt.Sprintf("model uuid (defaults to the uuid of the current model)"))
-	guiConfig := flag.String("config", "", fmt.Sprintf(`override or extend fields in the GUI configuration, for instance:
+	modelUUID := flag.String("uuid", "", "model uuid (defaults to the uuid of the current model)")
+	guiConfig := flag.String("config", "", `override or extend fields in the GUI configuration, for instance:
 		-config gisf:true
-		-config 'gisf: true, charmstoreURL: "https://1.2.3.4/cs"'`))
-	environment := flag.String("env", "production", fmt.Sprintf(`select a pre-defined environment to run against.
+		-config 'gisf: true, charmstoreURL: "https://1.2.3.4/cs"'`)
+	environment := flag.String("env", "production", `select a pre-defined environment to run against.
 		valid options:
 		- 'production' (default)
 		- 'staging'
-		- 'qa'`))
+		- 'qa'
+		- 'none' (explicitly empty values)`)
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()
 	if !strings.HasPrefix(*guiAddr, "http") {
 		*guiAddr = "http://" + *guiAddr
-	}
-	if !environments[*environment] {
-		return nil, fmt.Errorf("invalid environment: %s", *environment)
 	}
 	guiURL, err := url.Parse(*guiAddr)
 	if err != nil {
@@ -117,12 +115,6 @@ const (
 	defaultPort    = 8042
 	defaultGUIAddr = "http://localhost:6543"
 )
-
-var environments = map[string]bool{
-	"production": true,
-	"staging":    true,
-	"qa":         true,
-}
 
 // config holds the GUI proxy server configuration options.
 type config struct {
