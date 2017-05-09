@@ -44,7 +44,7 @@ func main() {
 	if options.legacyJuju {
 		log.Println("using Juju 1")
 	}
-	if options.customConfig {
+	if options.hasCustomConfig {
 		log.Println("GUI config has been customized")
 	}
 
@@ -99,15 +99,15 @@ func parseOptions() (*config, error) {
 		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
 	}
 	return &config{
-		port:           *port,
-		guiURL:         guiURL,
-		controllerAddr: *controllerAddr,
-		modelUUID:      *modelUUID,
-		environment:    *environment,
-		guiConfig:      overrides,
-		customConfig:   len(*guiConfig) != 0,
-		legacyJuju:     *legacyJuju,
-		noColor:        *noColor,
+		port:            *port,
+		guiURL:          guiURL,
+		controllerAddr:  *controllerAddr,
+		modelUUID:       *modelUUID,
+		environment:     *environment,
+		guiConfig:       overrides,
+		hasCustomConfig: len(*guiConfig) != 0,
+		legacyJuju:      *legacyJuju,
+		noColor:         *noColor,
 	}, nil
 }
 
@@ -118,15 +118,15 @@ const (
 
 // config holds the GUI proxy server configuration options.
 type config struct {
-	port           int
-	guiURL         *url.URL
-	controllerAddr string
-	modelUUID      string
-	environment    string
-	guiConfig      map[string]interface{}
-	customConfig   bool
-	legacyJuju     bool
-	noColor        bool
+	port            int
+	guiURL          *url.URL
+	controllerAddr  string
+	modelUUID       string
+	environment     string
+	guiConfig       map[string]interface{}
+	hasCustomConfig bool
+	legacyJuju      bool
+	noColor         bool
 }
 
 // usage provides the command help and usage information.
