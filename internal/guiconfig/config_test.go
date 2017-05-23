@@ -10,65 +10,6 @@ import (
 	it "github.com/frankban/guiproxy/internal/testing"
 )
 
-var newEnvironmentTests = []struct {
-	about          string
-	env            string
-	expectedValues map[string]interface{}
-	expectedError  error
-}{{
-	about: "production environment",
-	env:   "production",
-	expectedValues: map[string]interface{}{
-		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
-		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
-		"plansURL":         "https://api.jujucharms.com/plans/",
-		"termsURL":         "https://api.jujucharms.com/terms/",
-	},
-}, {
-	about: "staging environment",
-	env:   "staging",
-	expectedValues: map[string]interface{}{
-		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
-		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
-		"plansURL":         "https://api.staging.jujucharms.com/plans/",
-		"termsURL":         "https://api.staging.jujucharms.com/terms/",
-	},
-}, {
-	about: "qa environment",
-	env:   "qa",
-	expectedValues: map[string]interface{}{
-		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
-		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
-		"plansURL":         "https://www.jujugui.org/plans/",
-		"termsURL":         "https://www.jujugui.org/terms/",
-	},
-}, {
-	about:          "none environment",
-	env:            "none",
-	expectedValues: map[string]interface{}{},
-}, {
-	about:         "invalid environment",
-	env:           "bad-wolf",
-	expectedError: errors.New(`invalid environment: "bad-wolf"`),
-}}
-
-func TestNewEnvironment(t *testing.T) {
-	for _, test := range newEnvironmentTests {
-		t.Run(test.about, func(t *testing.T) {
-			values, err := guiconfig.Environment(test.env)
-			var valuesInterfaces map[string]interface{}
-			if test.expectedValues != nil {
-				valuesInterfaces = make(map[string]interface{}, len(values))
-			}
-			for k, v := range values {
-				valuesInterfaces[k] = interface{}(v)
-			}
-			assertMap(t, valuesInterfaces, test.expectedValues)
-			it.AssertError(t, err, test.expectedError)
-		})
-	}
-}
-
 var newTests = []struct {
 	about             string
 	ctx               guiconfig.Context
@@ -141,7 +82,7 @@ func TestNew(t *testing.T) {
 	}
 }
 
-var ParseOverridesForEnvTests = []struct {
+var parseOverridesForEnvTests = []struct {
 	about             string
 	input             string
 	env               string
@@ -150,14 +91,27 @@ var ParseOverridesForEnvTests = []struct {
 }{{
 	about: "no overrides",
 }, {
-	about: "with env",
-	env:   "production",
+	about: "with staging env",
+	env:   "staging",
 	expectedOverrides: map[string]interface{}{
-		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
-		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
-		"plansURL":         "https://api.jujucharms.com/plans/",
-		"termsURL":         "https://api.jujucharms.com/terms/",
+		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
+		"plansURL":         "https://api.staging.jujucharms.com/plans/",
+		"termsURL":         "https://api.staging.jujucharms.com/terms/",
 	},
+}, {
+	about: "with qa environment",
+	env:   "qa",
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
+		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
+		"plansURL":         "https://www.jujugui.org/plans/",
+		"termsURL":         "https://www.jujugui.org/terms/",
+	},
+}, {
+	about:         "invalid environment",
+	env:           "bad-wolf",
+	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
 	about: "success: single bool",
 	input: "gisf: true",
@@ -204,9 +158,9 @@ var ParseOverridesForEnvTests = []struct {
 }}
 
 func TestParseOverridesForEnv(t *testing.T) {
-	for _, test := range ParseOverridesForEnvTests {
+	for _, test := range parseOverridesForEnvTests {
 		if test.env == "" {
-			test.env = "none"
+			test.env = "production"
 		}
 		t.Run(test.about, func(t *testing.T) {
 			overrides, err := guiconfig.ParseOverridesForEnv(test.env, test.input)

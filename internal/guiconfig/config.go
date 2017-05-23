@@ -12,6 +12,7 @@ const (
 	separator = ","
 )
 
+// environmentValues appends URL paths to the base URL provided.
 func environmentValues(url string) map[string]string {
 	url = strings.TrimRight(url, "/")
 	return map[string]string{
@@ -22,19 +23,18 @@ func environmentValues(url string) map[string]string {
 	}
 }
 
-func Environment(env string) (map[string]string, error) {
+// Environment takes an environment name and returns default values for
+// services on that environment.
+func environment(env string) (map[string]string, error) {
 	switch env {
 	case "production":
-		return environmentValues("https://api.jujucharms.com"), nil
+		return nil, nil
 	case "staging":
 		return environmentValues("https://api.staging.jujucharms.com"), nil
 	case "qa":
 		return environmentValues("https://www.jujugui.org"), nil
-	case "none":
-		return map[string]string{}, nil
-	default:
-		return nil, fmt.Errorf("invalid environment: %q", env)
 	}
+	return nil, fmt.Errorf("invalid environment: %q", env)
 }
 
 // New generates and returns the Juju GUI configuration file as a string, based
@@ -94,13 +94,13 @@ type Context struct {
 // Accepted strings are like the following:
 // `gisf: true; charmstoreURL: "https://1.2.3.4/cs"`.
 func ParseOverridesForEnv(env, v string) (map[string]interface{}, error) {
-	pairs := strings.Split(v, separator)
-	environment, err := Environment(env)
+	envMap, err := environment(env)
 	if err != nil {
 		return nil, err
 	}
-	overrides := make(map[string]interface{}, len(pairs)+len(environment))
-	for envKey, envValue := range environment {
+	pairs := strings.Split(v, separator)
+	overrides := make(map[string]interface{}, len(pairs)+len(envMap))
+	for envKey, envValue := range envMap {
 		overrides[envKey] = envValue
 	}
 	if v == "" {

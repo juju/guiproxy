@@ -82,8 +82,7 @@ func parseOptions() (*config, error) {
 		valid options:
 		- 'production' (default)
 		- 'staging'
-		- 'qa'
-		- 'none' (explicitly empty values)`)
+		- 'qa'`)
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()
