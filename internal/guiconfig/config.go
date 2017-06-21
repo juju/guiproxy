@@ -20,6 +20,7 @@ func environmentValues(url string) map[string]string {
 		"charmstoreURL":    url + "/charmstore/",
 		"plansURL":         url + "/plans/",
 		"termsURL":         url + "/terms/",
+		"identityURL":      url + "/identity/",
 	}
 }
 
@@ -54,6 +55,7 @@ func New(ctx Context, overrides map[string]interface{}) string {
 		"bundleServiceURL":         "https://api.jujucharms.com/bundleservice/",
 		"plansURL":                 "https://api.jujucharms.com/omnibus/",
 		"termsURL":                 "https://api.jujucharms.com/terms/",
+		"identityURL":              "https://api.jujucharms.com/identity/",
 		"interactiveLogin":         true,
 		"html5":                    true,
 		"container":                "#main",

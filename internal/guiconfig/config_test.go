@@ -98,6 +98,7 @@ var parseOverridesForEnvTests = []struct {
 		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
 		"plansURL":         "https://api.staging.jujucharms.com/plans/",
 		"termsURL":         "https://api.staging.jujucharms.com/terms/",
+		"identityURL":      "https://api.staging.jujucharms.com/identity/",
 	},
 }, {
 	about: "with qa environment",
@@ -107,6 +108,7 @@ var parseOverridesForEnvTests = []struct {
 		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
 		"plansURL":         "https://www.jujugui.org/plans/",
 		"termsURL":         "https://www.jujugui.org/terms/",
+		"identityURL":      "https://www.jujugui.org/identity/",
 	},
 }, {
 	about:         "invalid environment",
