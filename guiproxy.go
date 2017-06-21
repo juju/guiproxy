@@ -52,7 +52,7 @@ func main() {
 	srv := server.New(server.Params{
 		ControllerAddr: controllerAddr,
 		ModelUUID:      modelUUID,
-		OriginAddr:     "http://localhost" + listenAddr,
+		OriginAddr:     "http://0.0.0.0" + listenAddr,
 		GUIURL:         options.guiURL,
 		GUIConfig:      options.guiConfig,
 		LegacyJuju:     options.legacyJuju,
@@ -61,7 +61,7 @@ func main() {
 
 	// Start the GUI proxy server.
 	log.Println("starting the server\n")
-	log.Printf("visit the GUI at http://localhost:%d/\n", options.port)
+	log.Printf("visit the GUI at http://0.0.0.0:%d/\n", options.port)
 	if err := http.ListenAndServe(listenAddr, srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
 	}
@@ -82,7 +82,8 @@ func parseOptions() (*config, error) {
 		valid options:
 		- 'production' (default)
 		- 'staging'
-		- 'qa'`)
+		- 'qa'
+		- 'none' (explicitly empty values)`)
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()
