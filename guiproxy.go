@@ -37,14 +37,14 @@ func main() {
 	}
 	log.Printf("GUI sandbox: %s\n", options.guiURL)
 	log.Printf("controller: %s\n", controllerAddr)
-	log.Printf("environment: %s\n", options.environment)
 	if modelUUID != "" {
 		log.Printf("model: %s\n", modelUUID)
 	}
 	if options.legacyJuju {
 		log.Println("using Juju 1")
 	}
-	if options.hasCustomConfig {
+	log.Printf("environment: %s\n", options.environment)
+	if len(options.guiConfig) != 0 {
 		log.Println("GUI config has been customized")
 	}
 
@@ -78,12 +78,10 @@ func parseOptions() (*config, error) {
 	guiConfig := flag.String("config", "", `override or extend fields in the GUI configuration, for instance:
 		-config gisf:true
 		-config 'gisf: true, charmstoreURL: "https://1.2.3.4/cs"'`)
-	environment := flag.String("env", "production", `select a pre-defined environment to run against.
-		valid options:
-		- 'production' (default)
-		- 'staging'
-		- 'qa'
-		- 'none' (explicitly empty values)`)
+	environment := flag.String("env", "production", `select a predefined environment to run against:
+		- production (default)
+		- staging
+		- qa`)
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	flag.Parse()
@@ -99,15 +97,14 @@ func parseOptions() (*config, error) {
 		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
 	}
 	return &config{
-		port:            *port,
-		guiURL:          guiURL,
-		controllerAddr:  *controllerAddr,
-		modelUUID:       *modelUUID,
-		environment:     *environment,
-		guiConfig:       overrides,
-		hasCustomConfig: len(*guiConfig) != 0,
-		legacyJuju:      *legacyJuju,
-		noColor:         *noColor,
+		port:           *port,
+		guiURL:         guiURL,
+		controllerAddr: *controllerAddr,
+		modelUUID:      *modelUUID,
+		environment:    *environment,
+		guiConfig:      overrides,
+		legacyJuju:     *legacyJuju,
+		noColor:        *noColor,
 	}, nil
 }
 
@@ -118,15 +115,14 @@ const (
 
 // config holds the GUI proxy server configuration options.
 type config struct {
-	port            int
-	guiURL          *url.URL
-	controllerAddr  string
-	modelUUID       string
-	environment     string
-	guiConfig       map[string]interface{}
-	hasCustomConfig bool
-	legacyJuju      bool
-	noColor         bool
+	port           int
+	guiURL         *url.URL
+	controllerAddr string
+	modelUUID      string
+	environment    string
+	guiConfig      map[string]interface{}
+	legacyJuju     bool
+	noColor        bool
 }
 
 // usage provides the command help and usage information.
