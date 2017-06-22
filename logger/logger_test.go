@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	it "github.com/frankban/guiproxy/internal/testing"
-	"github.com/frankban/guiproxy/logger"
+	it "github.com/juju/guiproxy/internal/testing"
+	"github.com/juju/guiproxy/logger"
 )
 
 func TestPrint(t *testing.T) {

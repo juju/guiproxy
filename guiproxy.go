@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frankban/guiproxy/internal/guiconfig"
-	"github.com/frankban/guiproxy/internal/juju"
-	"github.com/frankban/guiproxy/server"
+	"github.com/juju/guiproxy/internal/guiconfig"
+	"github.com/juju/guiproxy/internal/juju"
+	"github.com/juju/guiproxy/server"
 )
 
 // version holds the guiproxy program version.

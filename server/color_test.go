@@ -3,8 +3,8 @@ package server_test
 import (
 	"testing"
 
-	it "github.com/frankban/guiproxy/internal/testing"
-	"github.com/frankban/guiproxy/server"
+	it "github.com/juju/guiproxy/internal/testing"
+	"github.com/juju/guiproxy/server"
 )
 
 func TestMkColor(t *testing.T) {

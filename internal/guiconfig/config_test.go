@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankban/guiproxy/internal/guiconfig"
-	it "github.com/frankban/guiproxy/internal/testing"
+	"github.com/juju/guiproxy/internal/guiconfig"
+	it "github.com/juju/guiproxy/internal/testing"
 )
 
 var newTests = []struct {

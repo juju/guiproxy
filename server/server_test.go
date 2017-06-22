@@ -12,8 +12,8 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	it "github.com/frankban/guiproxy/internal/testing"
-	"github.com/frankban/guiproxy/server"
+	it "github.com/juju/guiproxy/internal/testing"
+	"github.com/juju/guiproxy/server"
 )
 
 func TestNew(t *testing.T) {
