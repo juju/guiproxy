@@ -7,7 +7,7 @@ real Juju controller.
 
 ## Installation
 
-Run `go get github.com/frankban/guiproxy`.
+Run `go get github.com/juju/guiproxy`.
 
 ## Usage
 
