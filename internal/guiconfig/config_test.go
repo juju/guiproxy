@@ -82,13 +82,38 @@ func TestNew(t *testing.T) {
 	}
 }
 
-var parseOverridesTests = []struct {
+var parseOverridesForEnvTests = []struct {
 	about             string
 	input             string
+	env               string
 	expectedOverrides map[string]interface{}
 	expectedError     error
 }{{
 	about: "no overrides",
+}, {
+	about: "with staging env",
+	env:   "staging",
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
+		"plansURL":         "https://api.staging.jujucharms.com/plans/",
+		"termsURL":         "https://api.staging.jujucharms.com/terms/",
+		"identityURL":      "https://api.staging.jujucharms.com/identity/",
+	},
+}, {
+	about: "with qa environment",
+	env:   "qa",
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
+		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
+		"plansURL":         "https://www.jujugui.org/plans/",
+		"termsURL":         "https://www.jujugui.org/terms/",
+		"identityURL":      "https://www.jujugui.org/identity/",
+	},
+}, {
+	about:         "invalid environment",
+	env:           "bad-wolf",
+	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
 	about: "success: single bool",
 	input: "gisf: true",
@@ -116,6 +141,10 @@ var parseOverridesTests = []struct {
 		"apiAddress": "1.2.3.4",
 		"gisf":       true,
 	},
+}, {}, {
+	about:         "failure: invalid environment",
+	env:           "bad-wolf",
+	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
 	about:         "failure: invalid pairs",
 	input:         "bad, wolf",
@@ -130,17 +159,20 @@ var parseOverridesTests = []struct {
 	expectedError: errors.New("invalid value for key gisf: invalid character"),
 }}
 
-func TestParseOverrides(t *testing.T) {
-	for _, test := range parseOverridesTests {
+func TestParseOverridesForEnv(t *testing.T) {
+	for _, test := range parseOverridesForEnvTests {
+		if test.env == "" {
+			test.env = "production"
+		}
 		t.Run(test.about, func(t *testing.T) {
-			overrides, err := guiconfig.ParseOverrides(test.input)
-			assertOverrides(t, overrides, test.expectedOverrides)
+			overrides, err := guiconfig.ParseOverridesForEnv(test.env, test.input)
+			assertMap(t, overrides, test.expectedOverrides)
 			it.AssertError(t, err, test.expectedError)
 		})
 	}
 }
 
-func assertOverrides(t *testing.T, obtained, expected map[string]interface{}) {
+func assertMap(t *testing.T, obtained, expected map[string]interface{}) {
 	o, err := json.Marshal(obtained)
 	if err != nil {
 		t.Fatalf("cannot marshal obtained overrides: %s", err)
