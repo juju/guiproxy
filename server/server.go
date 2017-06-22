@@ -13,9 +13,9 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/frankban/guiproxy/internal/guiconfig"
-	"github.com/frankban/guiproxy/logger"
-	"github.com/frankban/guiproxy/wsproxy"
+	"github.com/juju/guiproxy/internal/guiconfig"
+	"github.com/juju/guiproxy/logger"
+	"github.com/juju/guiproxy/wsproxy"
 )
 
 const (

@@ -10,8 +10,8 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	it "github.com/frankban/guiproxy/internal/testing"
-	"github.com/frankban/guiproxy/wsproxy"
+	it "github.com/juju/guiproxy/internal/testing"
+	"github.com/juju/guiproxy/wsproxy"
 )
 
 func TestCopy(t *testing.T) {

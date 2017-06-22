@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/frankban/guiproxy/logger"
+	"github.com/juju/guiproxy/logger"
 )
 
 // Copy copies messages back and forth between the provided WebSocket

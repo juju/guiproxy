@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/frankban/guiproxy/internal/guiconfig"
-	"github.com/frankban/guiproxy/internal/juju"
-	"github.com/frankban/guiproxy/server"
+	"github.com/juju/guiproxy/internal/guiconfig"
+	"github.com/juju/guiproxy/internal/juju"
+	"github.com/juju/guiproxy/server"
 )
 
 // version holds the guiproxy program version.
-const version = "0.4.0"
+const version = "0.4.1"
 
 var program = filepath.Base(os.Args[0])
 

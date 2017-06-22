@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankban/guiproxy/internal/juju"
-	it "github.com/frankban/guiproxy/internal/testing"
+	"github.com/juju/guiproxy/internal/juju"
+	it "github.com/juju/guiproxy/internal/testing"
 )
 
 func TestInfo(t *testing.T) {
