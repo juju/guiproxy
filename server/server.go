@@ -134,8 +134,12 @@ func newWebSocketProxy(dstTemplate, srcTemplate, origin string, noColor bool) fu
 // regular expression, current request path and destination socket template.
 func resolveWebSocketAddress(re *regexp.Regexp, path, dstTemplate string) string {
 	match := re.FindStringSubmatch(path)
+	names := re.SubexpNames()
+	if len(match) != len(names) {
+		log.Fatalf("invalid WebSocket path %q", path)
+	}
 	oldnew := make([]string, 0, 6)
-	for i, name := range re.SubexpNames() {
+	for i, name := range names {
 		if i != 0 {
 			oldnew = append(oldnew, "$"+name, match[i])
 		}
