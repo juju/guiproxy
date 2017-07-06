@@ -9,55 +9,39 @@ import (
 	"time"
 )
 
-// Info returns the Juju controller address and the model unique identifier to
-// be used for the proxy. If controllerAddr is empty, then the current
-// controller address is returned. If modelUUID is empty, then the uuid of the
-// current active model is returned.
-func Info(controllerAddr, modelUUID string) (string, string, error) {
+// Info returns the Juju controller address be used for the proxy. If the given
+// controllerAddr is empty, then the current controller address is returned.
+// Otherwise the given controllerAddr is validated to be properly listening.
+func Info(controllerAddr string) (string, error) {
 	if controllerAddr != "" {
 		controllerAddr, err := chooseAddress([]string{controllerAddr})
 		if err != nil {
-			return "", "", fmt.Errorf("cannot connect to the Juju controller: %s", err)
+			return "", fmt.Errorf("cannot connect to the Juju controller: %s", err)
 		}
-		return controllerAddr, modelUUID, nil
+		return controllerAddr, nil
 	}
 
 	// Retrieve Juju info from the CLI.
 	out, err := execCommand("juju", "show-controller", "--format", "json")
 	if err != nil {
-		return "", "", fmt.Errorf("cannot retrieve controller info: %s", err)
+		return "", fmt.Errorf("cannot retrieve controller info: %s", err)
 	}
 	var infos map[string]*controllerInfo
 	err = json.Unmarshal(out, &infos)
 	if err != nil || len(infos) != 1 {
-		return "", "", fmt.Errorf("invalid controller info returned by juju: %q", out)
+		return "", fmt.Errorf("invalid controller info returned by juju: %q", out)
 	}
 	info := flattenInfo(infos)
 
 	// Retrieve the controller address.
 	if info.Details == nil || len(info.Details.Addrs) == 0 {
-		return "", "", fmt.Errorf("no addresses found in controller info: %q", out)
+		return "", fmt.Errorf("no addresses found in controller info: %q", out)
 	}
 	controllerAddr, err = chooseAddress(info.Details.Addrs)
 	if err != nil {
-		return "", "", fmt.Errorf("cannot connect to the Juju controller: %s", err)
+		return "", fmt.Errorf("cannot connect to the Juju controller: %s", err)
 	}
-
-	// Retrieve the model unique identifier.
-	if modelUUID == "" && info.Current != "" {
-		parts := strings.SplitN(info.Current, "/", 2)
-		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invalid model name in controller info: %q", out)
-		}
-		modelName := parts[1]
-		modelInfo := info.Models[modelName]
-		if modelInfo == nil || modelInfo.UUID == "" {
-			return "", "", fmt.Errorf("no uuid found for model %q: %q", modelName, out)
-		}
-		modelUUID = modelInfo.UUID
-	}
-
-	return controllerAddr, modelUUID, nil
+	return controllerAddr, nil
 }
 
 // execCommand is defined as a variable for testing purposes.
@@ -65,14 +49,11 @@ var execCommand = func(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).Output()
 }
 
+// controllerInfo is used to unmarshal the output of "juju show-controller".
 type controllerInfo struct {
 	Details *struct {
 		Addrs []string `json:"api-endpoints"`
 	} `json:"details"`
-	Models map[string]*struct {
-		UUID string `json:"uuid"`
-	}
-	Current string `json:"current-model"`
 }
 
 // flattenInfo flattens the given controller info. The given map is assumed to

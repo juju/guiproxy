@@ -25,7 +25,9 @@ type apiLogger struct {
 // Print implements Interface and logs string messages.
 func (l *apiLogger) Print(msg string) {
 	for _, modifier := range l.modifiers {
-		msg = modifier(msg)
+		if modifier != nil {
+			msg = modifier(msg)
+		}
 	}
 	logPrintln(msg)
 }

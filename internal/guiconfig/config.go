@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// BaseURL is the base URL from which the GUI is served.
+	BaseURL = "/gui/"
+
 	prefix    = "var juju_config = "
 	suffix    = ";"
 	separator = ","
@@ -18,11 +21,11 @@ const (
 func New(ctx Context, overrides map[string]interface{}) string {
 	cfg := map[string]interface{}{
 		"jujuCoreVersion":          ctx.JujuVersion,
-		"jujuEnvUUID":              ctx.UUID,
 		"apiAddress":               ctx.Address,
 		"controllerSocketTemplate": ctx.ControllerTemplate,
 		"socketTemplate":           ctx.ModelTemplate,
-		"baseUrl":                  "/",
+		"baseUrl":                  BaseURL,
+		"jujuEnvUUID":              "",
 		"gisf":                     false,
 		"socket_protocol":          "ws",
 		"interactiveLogin":         true,
@@ -32,8 +35,10 @@ func New(ctx Context, overrides map[string]interface{}) string {
 		"consoleEnabled":           true,
 		"serverRouting":            false,
 	}
-	for k, v := range environmentValues("https://api.jujucharms.com") {
-		cfg[k] = v
+	for k, v := range envOverrides("https://api.jujucharms.com") {
+		if _, found := cfg[k]; !found {
+			cfg[k] = v
+		}
 	}
 	for k, v := range overrides {
 		cfg[k] = v
@@ -51,9 +56,6 @@ type Context struct {
 	// Address holds the address of the Juju controller WebSocket server.
 	Address string
 
-	// UUID optionally holds a Juju model unique identifier.
-	UUID string
-
 	// JujuVersion holds the current Juju version.
 	JujuVersion string
 
@@ -64,11 +66,11 @@ type Context struct {
 	ModelTemplate string
 }
 
-// ParseOverridesForEnv generates overrides from the given string, populating URLs for a given environment.
-// Accepted strings are like the following:
+// ParseOverridesForEnv generates overrides from the given string, populating
+// URLs for a given environment. Accepted strings are like the following:
 // `gisf: true; charmstoreURL: "https://1.2.3.4/cs"`.
-func ParseOverridesForEnv(env, v string) (map[string]interface{}, error) {
-	envPairs, err := environment(env)
+func ParseOverridesForEnv(envName, v string) (map[string]interface{}, error) {
+	envPairs, err := envPairs(envName)
 	if err != nil {
 		return nil, err
 	}
@@ -100,28 +102,54 @@ func ParseOverridesForEnv(env, v string) (map[string]interface{}, error) {
 	return overrides, nil
 }
 
-// Environment takes an environment name and returns default values for
-// services on that environment.
-func environment(env string) (map[string]string, error) {
-	switch env {
-	case "production":
-		return nil, nil
-	case "staging":
-		return environmentValues("https://api.staging.jujucharms.com"), nil
-	case "qa":
-		return environmentValues("https://www.jujugui.org"), nil
-	}
-	return nil, fmt.Errorf("invalid environment: %q", env)
+// Environments holds a map of environment names to their corresponding info.
+var Environments = map[string]env{
+	"production": {
+		ControllerAddr: "jimm.jujucharms.com:443",
+	},
+	"staging": {
+		ControllerAddr: "jimm.staging.jujucharms.com:443",
+		overrides:      envOverrides("https://api.staging.jujucharms.com"),
+	},
+	"qa": {
+		ControllerAddr: "jimm.jujugui.org:443",
+		overrides:      envOverrides("https://www.jujugui.org"),
+	},
 }
 
-// environmentValues appends URL paths to the base URL provided.
-func environmentValues(url string) map[string]string {
+// env holds information about an environment in which the GUI can be run,
+// for example staging or production.
+type env struct {
+	// ControllerAddr holds the controller address for this environment.
+	ControllerAddr string
+
+	overrides map[string]interface{}
+}
+
+// envOverrides appends URL paths to the base URL provided, resulting in a map
+// that can be used to override the default configuration.
+func envOverrides(url string) map[string]interface{} {
 	url = strings.TrimRight(url, "/")
-	return map[string]string{
+	return map[string]interface{}{
 		"bundleServiceURL": url + "/bundleservice/",
 		"charmstoreURL":    url + "/charmstore/",
 		"identityURL":      url + "/identity/",
 		"plansURL":         url + "/plans/",
 		"termsURL":         url + "/terms/",
+		// In all main GUI scenarios we can assume gisf to be true.
+		"gisf": true,
 	}
+}
+
+// envPairs returns override pairs for the given environment name, which can be
+// empty.
+func envPairs(envName string) (map[string]interface{}, error) {
+	if envName == "" {
+		return nil, nil
+	}
+	env, found := Environments[envName]
+	if !found {
+		return nil, fmt.Errorf("invalid environment: %q", envName)
+	}
+	return env.overrides, nil
 }

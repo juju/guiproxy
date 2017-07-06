@@ -17,6 +17,9 @@ var (
 	lightGreen = mkColor(40)
 	blue       = mkColor(27)
 	lightBlue  = mkColor(39)
+	pink       = mkColor(13)
+	yellow     = mkColor(11)
+	orange     = mkColor(202)
 )
 
 // logColors returns the color functions to use for incoming and outgoing API

@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,6 +13,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
+	"github.com/juju/guiproxy/internal/guiconfig"
 	it "github.com/juju/guiproxy/internal/testing"
 	"github.com/juju/guiproxy/server"
 )
@@ -32,7 +34,6 @@ func TestNew(t *testing.T) {
 
 	proxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
-		ModelUUID:      "example-uuid",
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
 	}))
@@ -41,7 +42,6 @@ func TestNew(t *testing.T) {
 
 	legacyProxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: legacyJujuURL.Host,
-		ModelUUID:      "example-legacy-uuid",
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
 		LegacyJuju:     true,
@@ -51,7 +51,6 @@ func TestNew(t *testing.T) {
 
 	customConfigProxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
-		ModelUUID:      "",
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
 		GUIConfig: map[string]interface{}{
@@ -65,13 +64,10 @@ func TestNew(t *testing.T) {
 	defer customConfigProxy.Close()
 	customConfigServerURL := it.MustParseURL(t, customConfigProxy.URL)
 
-	jujuParts := strings.Split(jujuURL.Host, ":")
-	controllerPath := fmt.Sprintf("/controller/%s/%s/controller-api", jujuParts[0], jujuParts[1])
-	modelPath1 := fmt.Sprintf("/model/%s/%s/uuid/model-api", jujuParts[0], jujuParts[1])
-	modelPath2 := fmt.Sprintf("/model/%s/%s/another-uuid/model-api", jujuParts[0], jujuParts[1])
-
-	legacyJujuParts := strings.Split(legacyJujuURL.Host, ":")
-	legacyModelPath := fmt.Sprintf("/model/%s/%s/model-api", legacyJujuParts[0], legacyJujuParts[1])
+	controllerPath := fmt.Sprintf("/controller/?controller=%s", jujuURL.Host)
+	modelPath1 := fmt.Sprintf("/model/?model=%s&uuid=uuid", jujuURL.Host)
+	modelPath2 := fmt.Sprintf("/model/?model=%s&uuid=another-uuid", jujuURL.Host)
+	legacyModelPath := fmt.Sprintf("/model/?model=%s", legacyJujuURL.Host)
 
 	t.Run("testJujuWebSocket Controller", testJujuWebSocket(serverURL, "/api", controllerPath))
 	t.Run("testJujuWebSocket Model1", testJujuWebSocket(serverURL, "/model/uuid/api", modelPath1))
@@ -83,25 +79,25 @@ func TestNew(t *testing.T) {
 
 	t.Run("testGUIConfig", testGUIConfig(
 		serverURL,
-		fmt.Sprintf(`"controllerSocketTemplate": "%s"`, server.ControllerSrcTemplate),
-		fmt.Sprintf(`"socketTemplate": "%s"`, server.ModelSrcTemplate),
+		fmt.Sprintf(`"controllerSocketTemplate": %s`, jsonMarshalString(server.ControllerSrcTemplate)),
+		fmt.Sprintf(`"socketTemplate": %s`, jsonMarshalString(server.ModelSrcTemplate)),
 		fmt.Sprintf(`"apiAddress": "%s"`, jujuURL.Host),
 		fmt.Sprintf(`"jujuCoreVersion": "%s"`, server.JujuVersion),
-		`"jujuEnvUUID": "example-uuid"`,
+		`"jujuEnvUUID": ""`,
 		`"gisf": false`,
 	))
 	t.Run("testGUIConfig Legacy", testGUIConfig(
 		legacyServerURL,
 		`"controllerSocketTemplate": ""`,
-		fmt.Sprintf(`"socketTemplate": "%s"`, server.LegacyModelSrcTemplate),
+		fmt.Sprintf(`"socketTemplate": %s`, jsonMarshalString(server.LegacyModelSrcTemplate)),
 		fmt.Sprintf(`"apiAddress": "%s"`, legacyJujuURL.Host),
 		fmt.Sprintf(`"jujuCoreVersion": "%s"`, server.LegacyJujuVersion),
-		`"jujuEnvUUID": "example-legacy-uuid"`,
+		`"jujuEnvUUID": ""`,
 	))
 	t.Run("testGUIConfig Customized", testGUIConfig(
 		customConfigServerURL,
-		fmt.Sprintf(`"controllerSocketTemplate": "%s"`, server.ControllerSrcTemplate),
-		fmt.Sprintf(`"socketTemplate": "%s"`, server.ModelSrcTemplate),
+		fmt.Sprintf(`"controllerSocketTemplate": %s`, jsonMarshalString(server.ControllerSrcTemplate)),
+		fmt.Sprintf(`"socketTemplate": %s`, jsonMarshalString(server.ModelSrcTemplate)),
 		fmt.Sprintf(`"apiAddress": "%s"`, jujuURL.Host),
 		`"answer": 42`,
 		`"baseUrl": "/"`,
@@ -113,6 +109,9 @@ func TestNew(t *testing.T) {
 
 	t.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
 	t.Run("testGUIStaticFiles Legacy", testGUIStaticFiles(legacyServerURL))
+
+	t.Run("testGUIRedirect", testGUIRedirect(serverURL))
+	t.Run("testGUIRedirect Legacy", testGUIRedirect(legacyServerURL))
 }
 
 func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(t *testing.T) {
@@ -195,6 +194,32 @@ func testGUIStaticFiles(serverURL *url.URL) func(t *testing.T) {
 	}
 }
 
+func testGUIRedirect(serverURL *url.URL) func(t *testing.T) {
+	return func(t *testing.T) {
+		// Make the HTTP request to retrieve the GUI root path.
+		client := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		resp, err := client.Get(serverURL.String() + "/")
+		it.AssertError(t, err, nil)
+		defer resp.Body.Close()
+		// The request succeeded.
+		if resp.StatusCode != http.StatusMovedPermanently {
+			t.Fatalf("invalid response code from GUI static file: %v", resp.StatusCode)
+		}
+		// The response body includes the expected location.
+		b, err := ioutil.ReadAll(resp.Body)
+		it.AssertError(t, err, nil)
+		content := string(b)
+		fragment := fmt.Sprintf(`<a href="%s">Moved Permanently</a>`, guiconfig.BaseURL)
+		if !strings.Contains(content, fragment) {
+			t.Fatalf("invalid redirect location: %q not included in %q", fragment, content)
+		}
+	}
+}
+
 // newGUIServer creates and returns a new test server simulating a remote Juju
 // GUI run in sandbox mode.
 func newGUIServer() http.Handler {
@@ -252,4 +277,12 @@ func echoHandler(ws *websocket.Conn) {
 type jsonMessage struct {
 	Request  string
 	Response string
+}
+
+func jsonMarshalString(s interface{}) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
