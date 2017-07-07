@@ -10,9 +10,10 @@ const (
 	// BaseURL is the base URL from which the GUI is served.
 	BaseURL = "/gui/"
 
-	prefix    = "var juju_config = "
-	suffix    = ";"
-	separator = ","
+	productionBaseURL = "https://api.jujucharms.com"
+	prefix            = "var juju_config = "
+	suffix            = ";"
+	separator         = ","
 )
 
 // New generates and returns the Juju GUI configuration file as a string, based
@@ -35,7 +36,7 @@ func New(ctx Context, overrides map[string]interface{}) string {
 		"consoleEnabled":           true,
 		"serverRouting":            false,
 	}
-	for k, v := range envOverrides("https://api.jujucharms.com") {
+	for k, v := range envOverrides(productionBaseURL) {
 		if _, found := cfg[k]; !found {
 			cfg[k] = v
 		}
@@ -106,6 +107,7 @@ func ParseOverridesForEnv(envName, v string) (map[string]interface{}, error) {
 var Environments = map[string]env{
 	"production": {
 		ControllerAddr: "jimm.jujucharms.com:443",
+		overrides:      envOverrides(productionBaseURL),
 	},
 	"staging": {
 		ControllerAddr: "jimm.staging.jujucharms.com:443",
