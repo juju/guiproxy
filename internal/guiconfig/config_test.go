@@ -3,6 +3,7 @@ package guiconfig_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -19,7 +20,6 @@ var newTests = []struct {
 	about: "without overrides",
 	ctx: guiconfig.Context{
 		Address:            "1.2.3.4",
-		UUID:               "example-uuid",
 		JujuVersion:        "42.47.0",
 		ControllerTemplate: "wss://$server:$port/api",
 		ModelTemplate:      "wss://$server:$port/model/$uuid/api",
@@ -27,10 +27,10 @@ var newTests = []struct {
 	expectedFragments: []string{
 		`"apiAddress": "1.2.3.4"`,
 		`"jujuCoreVersion": "42.47.0"`,
-		`"jujuEnvUUID": "example-uuid"`,
+		`"jujuEnvUUID": ""`,
 		`"controllerSocketTemplate": "wss://$server:$port/api"`,
 		`"socketTemplate": "wss://$server:$port/model/$uuid/api"`,
-		`"baseUrl": "/"`,
+		fmt.Sprintf(`"baseUrl": "%s"`, guiconfig.BaseURL),
 		`"gisf": false`,
 		`"socket_protocol": "ws"`,
 	},
@@ -38,7 +38,6 @@ var newTests = []struct {
 	about: "with overrides",
 	ctx: guiconfig.Context{
 		Address:            "wss://1.2.3.4",
-		UUID:               "example-uuid",
 		JujuVersion:        "2.0.0",
 		ControllerTemplate: "/api",
 		ModelTemplate:      "/model/$uuid/api",
@@ -91,7 +90,7 @@ var parseOverridesForEnvTests = []struct {
 }{{
 	about: "no overrides",
 }, {
-	about: "with staging env",
+	about: "with staging",
 	env:   "staging",
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
@@ -99,9 +98,10 @@ var parseOverridesForEnvTests = []struct {
 		"plansURL":         "https://api.staging.jujucharms.com/plans/",
 		"termsURL":         "https://api.staging.jujucharms.com/terms/",
 		"identityURL":      "https://api.staging.jujucharms.com/identity/",
+		"gisf":             true,
 	},
 }, {
-	about: "with qa environment",
+	about: "with qa",
 	env:   "qa",
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
@@ -109,11 +109,8 @@ var parseOverridesForEnvTests = []struct {
 		"plansURL":         "https://www.jujugui.org/plans/",
 		"termsURL":         "https://www.jujugui.org/terms/",
 		"identityURL":      "https://www.jujugui.org/identity/",
+		"gisf":             true,
 	},
-}, {
-	about:         "invalid environment",
-	env:           "bad-wolf",
-	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
 	about: "success: single bool",
 	input: "gisf: true",

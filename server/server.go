@@ -6,13 +6,12 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
-	"regexp"
 	"strings"
 
 	"golang.org/x/net/websocket"
 
+	"github.com/juju/guiproxy/httpproxy"
 	"github.com/juju/guiproxy/internal/guiconfig"
 	"github.com/juju/guiproxy/logger"
 	"github.com/juju/guiproxy/wsproxy"
@@ -22,26 +21,27 @@ const (
 	// controllerSrcTemplate, controllerDstTemplate, modelSrcTemplate and
 	// modelDstTemplate hold templates to be provided and used by the Juju GUI
 	// in order to establish WebSocket connections.
-	controllerSrcTemplate = "/controller/$server/$port/controller-api"
-	controllerDstTemplate = "wss://$server:$port/api"
-	modelSrcTemplate      = "/model/$server/$port/$uuid/model-api"
-	modelDstTemplate      = "wss://$server:$port/model/$uuid/api"
+	controllerSrcTemplate = "/controller/?controller=$server:$port"
+	controllerDstTemplate = "wss://$controller/api"
+	modelSrcTemplate      = "/model/?model=$server:$port&uuid=$uuid"
+	modelDstTemplate      = "wss://$model/model/$uuid/api"
 
 	// legacyModelSrcTemplate and legacyModelDstTemplate hold templates to be
 	// provided and used by the Juju GUI in order to establish WebSocket
 	// connections to Juju 1 models.
-	legacyModelSrcTemplate = "/model/$server/$port/model-api"
-	legacyModelDstTemplate = "wss://$server:$port/"
+	legacyModelSrcTemplate = "/model/?model=$server:$port"
+	legacyModelDstTemplate = "wss://$model/"
 
 	// jujuVersion and legacyJujuVersion hold the Juju versions declared in the
 	// dynamically generated Juju GUI configuration file.
-	jujuVersion       = "2.0.1"
+	jujuVersion       = "2.2.0"
 	legacyJujuVersion = "1.25.7"
 )
 
 // New creates and returns a new GUI proxy server.
 func New(p Params) http.Handler {
 	mux := http.NewServeMux()
+
 	var serveModel func(*websocket.Conn)
 	if p.LegacyJuju {
 		serveModel = newWebSocketProxy(legacyModelDstTemplate, legacyModelSrcTemplate, p.OriginAddr, p.NoColor)
@@ -51,9 +51,14 @@ func New(p Params) http.Handler {
 		serveModel = newWebSocketProxy(modelDstTemplate, modelSrcTemplate, p.OriginAddr, p.NoColor)
 	}
 	mux.Handle("/model/", websocket.Handler(serveModel))
-	mux.Handle("/juju-core/", http.StripPrefix("/juju-core/", newTLSReverseProxy(p.ControllerAddr)))
-	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.ModelUUID, p.GUIConfig, p.LegacyJuju))
-	mux.Handle("/", httputil.NewSingleHostReverseProxy(p.GUIURL))
+
+	configColor, jujuProxyColor, guiProxyColor := pink, orange, yellow
+	if p.NoColor {
+		configColor, jujuProxyColor, guiProxyColor = nil, nil, nil
+	}
+	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.GUIConfig, p.LegacyJuju, logger.New(configColor)))
+	mux.Handle("/juju-core/", http.StripPrefix("/juju-core/", httpproxy.NewTLSReverseProxy(p.ControllerAddr, logger.New(jujuProxyColor))))
+	mux.Handle("/", httpproxy.NewRedirectHandler(guiconfig.BaseURL, p.GUIURL, logger.New(guiProxyColor)))
 	return mux
 }
 
@@ -61,9 +66,6 @@ func New(p Params) http.Handler {
 type Params struct {
 	// ControllerAddr holds the address of the remote Juju controller.
 	ControllerAddr string
-
-	// ModelUUID optionally holds the unique identifier of the target model.
-	ModelUUID string
 
 	// OriginAddr holds the address from which the WebSocket request is made.
 	OriginAddr string
@@ -82,33 +84,12 @@ type Params struct {
 	NoColor bool
 }
 
-// newTLSReverseProxy returns a new ReverseProxy that routes URLs to the given
-// host using TLS protocol. The resulting proxy does not verify certificates.
-func newTLSReverseProxy(host string) *httputil.ReverseProxy {
-	proxy := httputil.NewSingleHostReverseProxy(&url.URL{
-		Scheme: "https",
-		Host:   host,
-	})
-	proxy.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
-	return proxy
-}
-
 // newWebSocketProxy returns a WebSocket handler that proxies the WebSocket
 // frames from the Juju GUI to Juju and vice versa. WebSocket addresses are
 // translated using the given source and destination templates.
 func newWebSocketProxy(dstTemplate, srcTemplate, origin string, noColor bool) func(*websocket.Conn) {
-	r := strings.NewReplacer(
-		"$server", `(?P<server>.*)`,
-		"$port", `(?P<port>\d+)`,
-		"$uuid", `(?P<uuid>.*)`,
-	)
-	re := regexp.MustCompile(r.Replace(srcTemplate))
 	return func(guiWS *websocket.Conn) {
-		target := resolveWebSocketAddress(re, guiWS.Request().URL.Path, dstTemplate)
+		target := resolveWebSocketAddress(guiWS.Request().URL, dstTemplate)
 
 		// Open the WebSocket connection to the remote server.
 		log.Printf("opening %s\n", target)
@@ -132,17 +113,19 @@ func newWebSocketProxy(dstTemplate, srcTemplate, origin string, noColor bool) fu
 
 // resolveWebSocketAddress returns a Juju WebSocket address based on the given
 // regular expression, current request path and destination socket template.
-func resolveWebSocketAddress(re *regexp.Regexp, path, dstTemplate string) string {
-	match := re.FindStringSubmatch(path)
-	names := re.SubexpNames()
-	if len(match) != len(names) {
-		log.Fatalf("invalid WebSocket path %q", path)
-	}
-	oldnew := make([]string, 0, 6)
-	for i, name := range names {
-		if i != 0 {
-			oldnew = append(oldnew, "$"+name, match[i])
+func resolveWebSocketAddress(u *url.URL, dstTemplate string) string {
+	query := u.Query()
+	fields := []string{"controller", "model", "uuid"}
+	oldnew := make([]string, 0, len(fields)*2)
+	for _, field := range fields {
+		if !strings.Contains(dstTemplate, "$"+field) {
+			continue
 		}
+		value := query.Get(field)
+		if value == "" {
+			log.Fatalf("invalid WebSocket URL %q: %q query not present", u, field)
+		}
+		oldnew = append(oldnew, "$"+field, value)
 	}
 	r := strings.NewReplacer(oldnew...)
 	return r.Replace(dstTemplate)
@@ -167,8 +150,9 @@ func wsConnect(addr, origin string) (*websocket.Conn, error) {
 
 // serveConfig returns an HTTP handler that serves the Juju GUI JavaScript
 // configuration file. The configuration is dynamically generated using the
-// given controller address, model UUID and whether a legacy Juju is in use.
-func serveConfig(addr, uuid string, configOverrides map[string]interface{}, legacyJuju bool) func(w http.ResponseWriter, req *http.Request) {
+// given controller address, configuration overrides and whether a legacy Juju
+// is in use.
+func serveConfig(addr string, configOverrides map[string]interface{}, legacyJuju bool, log logger.Interface) func(w http.ResponseWriter, req *http.Request) {
 	controller, model := controllerSrcTemplate, modelSrcTemplate
 	version := jujuVersion
 	if legacyJuju {
@@ -177,12 +161,12 @@ func serveConfig(addr, uuid string, configOverrides map[string]interface{}, lega
 	}
 	cfg := guiconfig.New(guiconfig.Context{
 		Address:            addr,
-		UUID:               uuid,
 		JujuVersion:        version,
 		ControllerTemplate: controller,
 		ModelTemplate:      model,
 	}, configOverrides)
 	return func(w http.ResponseWriter, req *http.Request) {
+		log.Print(fmt.Sprintf("%s %s: %d OK\n%s", req.Method, req.URL, http.StatusOK, cfg))
 		w.Header().Set("Content-Type", jsMimeType)
 		fmt.Fprint(w, cfg)
 	}

@@ -16,6 +16,13 @@ func AssertString(t *testing.T, obtained, expected string) {
 	}
 }
 
+// AssertInt fails if the given integers are not equal.
+func AssertInt(t *testing.T, obtained, expected int) {
+	if obtained != expected {
+		t.Fatalf("%s%d != %d", caller(), obtained, expected)
+	}
+}
+
 // AssertError fails if the given errors are not equal.
 func AssertError(t *testing.T, obtained, expected error) {
 	if obtained == nil && expected == nil {

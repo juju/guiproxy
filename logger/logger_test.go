@@ -25,6 +25,14 @@ func TestModifiers(t *testing.T) {
 	it.AssertString(t, getOutput(), "MY PREFIX: OF THE STARSHIP ENTERPRISE\n")
 }
 
+func TestNilModifiers(t *testing.T) {
+	restore, getOutput := patchLogPrintln()
+	defer restore()
+	l := logger.New(nil, nil)
+	l.Print("exterminate")
+	it.AssertString(t, getOutput(), "exterminate\n")
+}
+
 func TestAddPrefix(t *testing.T) {
 	f := logger.AddPrefix(">>> answer")
 	it.AssertString(t, f("42"), ">>> answer: 42")

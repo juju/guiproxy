@@ -23,9 +23,7 @@ func TestInfo(t *testing.T) {
 		commandOut             string
 		commandErr             error
 		controllerAddr         string
-		modelUUID              string
 		expectedControllerAddr string
-		expectedModelUUID      string
 		expectedError          error
 	}{{
 		about:         "command error",
@@ -41,69 +39,30 @@ func TestInfo(t *testing.T) {
 		expectedError: errors.New(`invalid controller info returned by juju: "{}"`),
 	}, {
 		about:         "no addresses",
-		commandOut:    makeControllerInfo(nil, nil, ""),
+		commandOut:    makeControllerInfo(nil),
 		expectedError: errors.New("no addresses found in controller info:"),
 	}, {
 		about:         "invalid addresses",
-		commandOut:    makeControllerInfo([]string{":::"}, nil, ""),
+		commandOut:    makeControllerInfo([]string{":::"}),
 		expectedError: errors.New("cannot connect to the Juju controller: dial tcp:"),
 	}, {
-		about:         "invalid current model name",
-		commandOut:    makeControllerInfo([]string{serverURL.Host}, nil, "invalid"),
-		expectedError: errors.New("invalid model name in controller info:"),
-	}, {
-		about:         "no models available",
-		commandOut:    makeControllerInfo([]string{serverURL.Host}, nil, "admin@local/model47"),
-		expectedError: errors.New(`no uuid found for model "model47"`),
-	}, {
-		about: "specific model not found",
-		commandOut: makeControllerInfo([]string{serverURL.Host}, map[string]string{
-			"model42": "uuid42",
-		}, "admin@local/model47"),
-		expectedError: errors.New(`no uuid found for model "model47"`),
-	}, {
-		about: "success from juju",
-		commandOut: makeControllerInfo([]string{serverURL.Host}, map[string]string{
-			"model42": "uuid42",
-			"model47": "uuid47",
-		}, "admin@local/model47"),
-		expectedControllerAddr: serverURL.Host,
-		expectedModelUUID:      "uuid47",
-	}, {
-		about: "success from juju: no current model",
-		commandOut: makeControllerInfo([]string{serverURL.Host}, map[string]string{
-			"model42": "uuid42",
-			"model47": "uuid47",
-		}, ""),
+		about:                  "success from juju",
+		commandOut:             makeControllerInfo([]string{serverURL.Host}),
 		expectedControllerAddr: serverURL.Host,
 	}, {
-		about: "success from juju: multiple addresses",
-		commandOut: makeControllerInfo([]string{"::::", serverURL.Host, ":::"}, map[string]string{
-			"model42": "uuid42",
-			"model47": "uuid47",
-		}, "admin@local/model42"),
+		about:                  "success from juju: multiple addresses",
+		commandOut:             makeControllerInfo([]string{"::::", serverURL.Host, ":::"}),
 		expectedControllerAddr: serverURL.Host,
-		expectedModelUUID:      "uuid42",
 	}, {
-		about: "success from juju: multiple valid addresses",
-		commandOut: makeControllerInfo([]string{serverURL.Host, serverURL.Host, serverURL.Host}, map[string]string{
-			"model42": "uuid42",
-			"model47": "uuid47",
-		}, "admin@local/model42"),
+		about:                  "success from juju: multiple valid addresses",
+		commandOut:             makeControllerInfo([]string{serverURL.Host, serverURL.Host, serverURL.Host}),
 		expectedControllerAddr: serverURL.Host,
-		expectedModelUUID:      "uuid42",
 	}, {
 		about:          "invalid address from input",
 		controllerAddr: ":::",
 		expectedError:  errors.New("cannot connect to the Juju controller: dial tcp:"),
 	}, {
 		about:                  "success from input",
-		controllerAddr:         serverURL.Host,
-		modelUUID:              "uuid42",
-		expectedControllerAddr: serverURL.Host,
-		expectedModelUUID:      "uuid42",
-	}, {
-		about:                  "success from input: no model uuid",
 		controllerAddr:         serverURL.Host,
 		expectedControllerAddr: serverURL.Host,
 	}}
@@ -113,10 +72,9 @@ func TestInfo(t *testing.T) {
 		t.Run(test.about, func(t *testing.T) {
 			restore := patchCommand(t, []byte(test.commandOut), test.commandErr)
 			defer restore()
-			controllerAddr, modelUUID, err := juju.Info(test.controllerAddr, test.modelUUID)
+			controllerAddr, err := juju.Info(test.controllerAddr)
 			it.AssertError(t, err, test.expectedError)
 			it.AssertString(t, controllerAddr, test.expectedControllerAddr)
-			it.AssertString(t, modelUUID, test.expectedModelUUID)
 		})
 	}
 
@@ -145,22 +103,16 @@ func patchCommand(t *testing.T, out []byte, err error) (restore func()) {
 }
 
 // makeControllerInfo creates and returns a controller info output with the
-// given addrs, models and current model.
-func makeControllerInfo(addrs []string, models map[string]string, current string) string {
+// given addrs.
+func makeControllerInfo(addrs []string) string {
 	if addrs == nil {
 		addrs = make([]string, 0)
-	}
-	ms := make(map[string]interface{}, len(models))
-	for m, uuid := range models {
-		ms[m] = map[string]string{"uuid": uuid}
 	}
 	out := map[string]interface{}{
 		"controller-name": map[string]interface{}{
 			"details": map[string]interface{}{
 				"api-endpoints": addrs,
 			},
-			"models":        ms,
-			"current-model": current,
 		},
 	}
 	b, err := json.Marshal(out)
