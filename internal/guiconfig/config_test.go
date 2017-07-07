@@ -158,9 +158,6 @@ var parseOverridesForEnvTests = []struct {
 
 func TestParseOverridesForEnv(t *testing.T) {
 	for _, test := range parseOverridesForEnvTests {
-		if test.env == "" {
-			test.env = "production"
-		}
 		t.Run(test.about, func(t *testing.T) {
 			overrides, err := guiconfig.ParseOverridesForEnv(test.env, test.input)
 			assertMap(t, overrides, test.expectedOverrides)
