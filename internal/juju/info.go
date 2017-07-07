@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// Info returns the Juju controller address be used for the proxy. If the given
+// Info returns the controller address to be used for the proxy. If the given
 // controllerAddr is empty, then the current controller address is returned.
 // Otherwise the given controllerAddr is validated to be properly listening.
 func Info(controllerAddr string) (string, error) {
