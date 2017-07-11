@@ -30,6 +30,9 @@ func main() {
 		log.Fatalf("cannot parse configuration options: %s", err)
 	}
 	log.Printf("%s %s\n", program, version)
+	if options.showVersion {
+		return
+	}
 	log.Println("configuring the server")
 	listenAddr := ":" + strconv.Itoa(options.port)
 	controllerAddr, err := juju.Info(options.controllerAddr)
@@ -81,6 +84,7 @@ func parseOptions() (*config, error) {
 	envName := flag.String("env", "", "select a predefined environment to run against between the following:\n"+envChoices())
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
+	showVersion := flag.Bool("version", false, "show application version and exit")
 	flag.Parse()
 	if !strings.HasPrefix(*guiAddr, "http") {
 		*guiAddr = "http://" + *guiAddr
@@ -108,6 +112,7 @@ func parseOptions() (*config, error) {
 		guiConfig:      overrides,
 		legacyJuju:     *legacyJuju,
 		noColor:        *noColor,
+		showVersion:    *showVersion,
 	}, nil
 }
 
@@ -125,6 +130,7 @@ type config struct {
 	guiConfig      map[string]interface{}
 	legacyJuju     bool
 	noColor        bool
+	showVersion    bool
 }
 
 // usage provides the command help and usage information.
