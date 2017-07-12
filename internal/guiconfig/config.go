@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	// BaseURL is the base URL from which the GUI is served.
-	BaseURL = "/gui/"
-
+	baseURLKey        = "baseUrl"
+	defaultBaseURL    = "/gui/"
 	productionBaseURL = "https://api.jujucharms.com"
 	prefix            = "var juju_config = "
 	suffix            = ";"
@@ -25,7 +24,7 @@ func New(ctx Context, overrides map[string]interface{}) string {
 		"apiAddress":               ctx.Address,
 		"controllerSocketTemplate": ctx.ControllerTemplate,
 		"socketTemplate":           ctx.ModelTemplate,
-		"baseUrl":                  BaseURL,
+		baseURLKey:                 defaultBaseURL,
 		"jujuEnvUUID":              "",
 		"gisf":                     false,
 		"socket_protocol":          "ws",
@@ -138,6 +137,7 @@ func envOverrides(url string) map[string]interface{} {
 		"identityURL":      url + "/identity/",
 		"plansURL":         url + "/plans/",
 		"termsURL":         url + "/terms/",
+		baseURLKey:         "/",
 		// In all main GUI scenarios we can assume gisf to be true.
 		"gisf": true,
 	}
@@ -154,4 +154,34 @@ func envPairs(envName string) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("invalid environment: %q", envName)
 	}
 	return env.overrides, nil
+}
+
+// BaseURL returns the base URL from which the GUI is served by the proxy.
+// The given overrides are used to retrieve the URL. Otherwise, a default
+// base URL is returned.
+func BaseURL(overrides map[string]interface{}) (string, error) {
+	value, found := overrides[baseURLKey]
+	if !found {
+		return defaultBaseURL, nil
+	}
+	var u string
+	switch v := value.(type) {
+	case string:
+		// The value is probably an env override.
+		u = v
+	case *json.RawMessage:
+		// The value has been passed as a -config CLI parameter.
+		if err := json.Unmarshal([]byte(*v), &u); err != nil {
+			return "", fmt.Errorf("cannot unmarshal base URL %q: %s", *v, err)
+		}
+	default:
+		return "", fmt.Errorf(`invalid base URL: unexpected type %T`, v)
+	}
+	if !strings.HasPrefix(u, "/") {
+		return "", fmt.Errorf(`invalid base URL %q: must be a path starting with "/"`, u)
+	}
+	if !strings.HasSuffix(u, "/") {
+		u += "/"
+	}
+	return u, nil
 }

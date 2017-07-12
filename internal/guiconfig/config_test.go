@@ -30,7 +30,7 @@ var newTests = []struct {
 		`"jujuEnvUUID": ""`,
 		`"controllerSocketTemplate": "wss://$server:$port/api"`,
 		`"socketTemplate": "wss://$server:$port/model/$uuid/api"`,
-		fmt.Sprintf(`"baseUrl": "%s"`, guiconfig.BaseURL),
+		fmt.Sprintf(`"baseUrl": "%s"`, guiconfig.DefaultBaseURL),
 		`"gisf": false`,
 		`"socket_protocol": "ws"`,
 	},
@@ -90,6 +90,18 @@ var parseOverridesForEnvTests = []struct {
 }{{
 	about: "no overrides",
 }, {
+	about: "with production",
+	env:   "production",
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+		"identityURL":      "https://api.jujucharms.com/identity/",
+		"gisf":             true,
+		"baseUrl":          "/",
+	},
+}, {
 	about: "with staging",
 	env:   "staging",
 	expectedOverrides: map[string]interface{}{
@@ -99,6 +111,7 @@ var parseOverridesForEnvTests = []struct {
 		"termsURL":         "https://api.staging.jujucharms.com/terms/",
 		"identityURL":      "https://api.staging.jujucharms.com/identity/",
 		"gisf":             true,
+		"baseUrl":          "/",
 	},
 }, {
 	about: "with qa",
@@ -110,6 +123,7 @@ var parseOverridesForEnvTests = []struct {
 		"termsURL":         "https://www.jujugui.org/terms/",
 		"identityURL":      "https://www.jujugui.org/identity/",
 		"gisf":             true,
+		"baseUrl":          "/",
 	},
 }, {
 	about: "success: single bool",
@@ -166,6 +180,117 @@ func TestParseOverridesForEnv(t *testing.T) {
 	}
 }
 
+func TestBaseURL(t *testing.T) {
+	invalidRawMessage := json.RawMessage([]byte("bad wolf"))
+
+	tests := []struct {
+		about         string
+		overrides     map[string]interface{}
+		expectedURL   string
+		expectedError error
+	}{{
+		about:       "no overrides",
+		expectedURL: guiconfig.DefaultBaseURL,
+	}, {
+		about: "no relevant overrides",
+		overrides: map[string]interface{}{
+			"gisf": true,
+		},
+		expectedURL: guiconfig.DefaultBaseURL,
+	}, {
+		about: "string",
+		overrides: map[string]interface{}{
+			"baseUrl": "/base/",
+		},
+		expectedURL: "/base/",
+	}, {
+		about: "string no trailing slash",
+		overrides: map[string]interface{}{
+			"baseUrl": "/base",
+		},
+		expectedURL: "/base/",
+	}, {
+		about: "string slash",
+		overrides: map[string]interface{}{
+			"baseUrl": "/",
+		},
+		expectedURL: "/",
+	}, {
+		about: "raw message",
+		overrides: map[string]interface{}{
+			"baseUrl": rawMessage(t, "/raw/"),
+		},
+		expectedURL: "/raw/",
+	}, {
+		about: "raw message no trailing slash",
+		overrides: map[string]interface{}{
+			"baseUrl": rawMessage(t, "/raw"),
+		},
+		expectedURL: "/raw/",
+	}, {
+		about: "raw message slash",
+		overrides: map[string]interface{}{
+			"baseUrl": rawMessage(t, "/"),
+		},
+		expectedURL: "/",
+	}, {
+		about: "failure: empty string",
+		overrides: map[string]interface{}{
+			"baseUrl": "",
+		},
+		expectedError: errors.New(`invalid base URL "": must be a path starting with "/"`),
+	}, {
+		about: "failure: invalid string",
+		overrides: map[string]interface{}{
+			"baseUrl": "bad wolf",
+		},
+		expectedError: errors.New(`invalid base URL "bad wolf": must be a path starting with "/"`),
+	}, {
+		about: "failure: empty raw message",
+		overrides: map[string]interface{}{
+			"baseUrl": rawMessage(t, ""),
+		},
+		expectedError: errors.New(`invalid base URL "": must be a path starting with "/"`),
+	}, {
+		about: "failure: invalid raw message",
+		overrides: map[string]interface{}{
+			"baseUrl": rawMessage(t, "bad wolf"),
+		},
+		expectedError: errors.New(`invalid base URL "bad wolf": must be a path starting with "/"`),
+	}, {
+		about: "failure: raw message not a JSON",
+		overrides: map[string]interface{}{
+			"baseUrl": &invalidRawMessage,
+		},
+		expectedError: errors.New(`cannot unmarshal base URL "bad wolf"`),
+	}, {
+		about: "failure: invalid type",
+		overrides: map[string]interface{}{
+			"baseUrl": 42,
+		},
+		expectedError: errors.New("invalid base URL: unexpected type int"),
+	}, {
+		about: "failure: nil",
+		overrides: map[string]interface{}{
+			"baseUrl": nil,
+		},
+		expectedError: errors.New("invalid base URL: unexpected type <nil>"),
+	}}
+
+	for _, test := range tests {
+		t.Run(test.about, func(t *testing.T) {
+			baseURL, err := guiconfig.BaseURL(test.overrides)
+			if test.expectedError != nil {
+				it.AssertError(t, err, test.expectedError)
+				it.AssertString(t, baseURL, "")
+				return
+			}
+			it.AssertError(t, err, nil)
+			it.AssertString(t, baseURL, test.expectedURL)
+		})
+	}
+}
+
 func assertMap(t *testing.T, obtained, expected map[string]interface{}) {
 	o, err := json.Marshal(obtained)
 	if err != nil {
@@ -176,4 +301,13 @@ func assertMap(t *testing.T, obtained, expected map[string]interface{}) {
 		t.Fatalf("cannot marshal expected overrides: %s", err)
 	}
 	it.AssertString(t, string(o), string(e))
+}
+
+func rawMessage(t *testing.T, s string) *json.RawMessage {
+	b, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("cannot marshal string %q: %s", s, err)
+	}
+	msg := json.RawMessage(b)
+	return &msg
 }

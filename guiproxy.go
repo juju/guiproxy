@@ -57,13 +57,14 @@ func main() {
 		OriginAddr:     "http://0.0.0.0" + listenAddr,
 		GUIURL:         options.guiURL,
 		GUIConfig:      options.guiConfig,
+		BaseURL:        options.baseURL,
 		LegacyJuju:     options.legacyJuju,
 		NoColor:        options.noColor,
 	})
 
 	// Start the GUI proxy server.
 	log.Println("starting the server\n")
-	log.Printf("visit the GUI at http://0.0.0.0:%d%s\n", options.port, guiconfig.BaseURL)
+	log.Printf("visit the GUI at http://0.0.0.0:%d%s\n", options.port, options.baseURL)
 	if err := http.ListenAndServe(listenAddr, srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
 	}
@@ -100,6 +101,11 @@ func parseOptions() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
 	}
+	baseURL, err := guiconfig.BaseURL(overrides)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse base URL in config: %s", err)
+	}
+
 	// At this point we know that the provided environment name is valid.
 	if *controllerAddr == "" && *envName != "" {
 		*controllerAddr = guiconfig.Environments[*envName].ControllerAddr
@@ -110,6 +116,7 @@ func parseOptions() (*config, error) {
 		controllerAddr: *controllerAddr,
 		envName:        *envName,
 		guiConfig:      overrides,
+		baseURL:        baseURL,
 		legacyJuju:     *legacyJuju,
 		noColor:        *noColor,
 		showVersion:    *showVersion,
@@ -128,6 +135,7 @@ type config struct {
 	controllerAddr string
 	envName        string
 	guiConfig      map[string]interface{}
+	baseURL        string
 	legacyJuju     bool
 	noColor        bool
 	showVersion    bool
