@@ -13,7 +13,6 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/juju/guiproxy/internal/guiconfig"
 	it "github.com/juju/guiproxy/internal/testing"
 	"github.com/juju/guiproxy/server"
 )
@@ -36,6 +35,7 @@ func TestNew(t *testing.T) {
 		ControllerAddr: jujuURL.Host,
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
+		BaseURL:        "/base/",
 	}))
 	defer proxy.Close()
 	serverURL := it.MustParseURL(t, proxy.URL)
@@ -44,6 +44,7 @@ func TestNew(t *testing.T) {
 		ControllerAddr: legacyJujuURL.Host,
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
+		BaseURL:        "/base-legacy/",
 		LegacyJuju:     true,
 	}))
 	defer proxy.Close()
@@ -53,6 +54,7 @@ func TestNew(t *testing.T) {
 		ControllerAddr: jujuURL.Host,
 		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
+		BaseURL:        "/",
 		GUIConfig: map[string]interface{}{
 			"answer":          42,
 			"baseUrl":         "/",
@@ -110,8 +112,9 @@ func TestNew(t *testing.T) {
 	t.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
 	t.Run("testGUIStaticFiles Legacy", testGUIStaticFiles(legacyServerURL))
 
-	t.Run("testGUIRedirect", testGUIRedirect(serverURL))
-	t.Run("testGUIRedirect Legacy", testGUIRedirect(legacyServerURL))
+	t.Run("testGUIRedirect", testGUIRedirect(serverURL, "/base/"))
+	t.Run("testGUIRedirect Legacy", testGUIRedirect(legacyServerURL, "/base-legacy/"))
+	t.Run("testGUIRedirect Customized", testGUIRedirect(customConfigServerURL, "/"))
 }
 
 func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(t *testing.T) {
@@ -194,7 +197,7 @@ func testGUIStaticFiles(serverURL *url.URL) func(t *testing.T) {
 	}
 }
 
-func testGUIRedirect(serverURL *url.URL) func(t *testing.T) {
+func testGUIRedirect(serverURL *url.URL, baseURL string) func(t *testing.T) {
 	return func(t *testing.T) {
 		// Make the HTTP request to retrieve the GUI root path.
 		client := &http.Client{
@@ -206,14 +209,20 @@ func testGUIRedirect(serverURL *url.URL) func(t *testing.T) {
 		it.AssertError(t, err, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
+		if baseURL == "/" {
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("invalid response code from GUI redirect from %q: obtained %v, expected %v", baseURL, resp.StatusCode, http.StatusMovedPermanently)
+			}
+			return
+		}
 		if resp.StatusCode != http.StatusMovedPermanently {
-			t.Fatalf("invalid response code from GUI static file: %v", resp.StatusCode)
+			t.Fatalf("invalid response code from GUI redirect from %q: obtained %v, expected %v", baseURL, resp.StatusCode, http.StatusMovedPermanently)
 		}
 		// The response body includes the expected location.
 		b, err := ioutil.ReadAll(resp.Body)
 		it.AssertError(t, err, nil)
 		content := string(b)
-		fragment := fmt.Sprintf(`<a href="%s">Moved Permanently</a>`, guiconfig.BaseURL)
+		fragment := fmt.Sprintf(`<a href="%s">Moved Permanently</a>`, baseURL)
 		if !strings.Contains(content, fragment) {
 			t.Fatalf("invalid redirect location: %q not included in %q", fragment, content)
 		}

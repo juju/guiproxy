@@ -58,7 +58,7 @@ func New(p Params) http.Handler {
 	}
 	mux.HandleFunc("/config.js", serveConfig(p.ControllerAddr, p.GUIConfig, p.LegacyJuju, logger.New(configColor)))
 	mux.Handle("/juju-core/", http.StripPrefix("/juju-core/", httpproxy.NewTLSReverseProxy(p.ControllerAddr, logger.New(jujuProxyColor))))
-	mux.Handle("/", httpproxy.NewRedirectHandler(guiconfig.BaseURL, p.GUIURL, logger.New(guiProxyColor)))
+	mux.Handle("/", httpproxy.NewRedirectHandler(p.BaseURL, p.GUIURL, logger.New(guiProxyColor)))
 	return mux
 }
 
@@ -76,6 +76,9 @@ type Params struct {
 	// GUIConfig holds the key/value pairs used to optionally override the
 	// predefined Juju GUI configuration file.
 	GUIConfig map[string]interface{}
+
+	// BaseURL holds the base URL from which the GUI is served by the proxy.
+	BaseURL string
 
 	// LegacyJuju holds whether the proxy is connected to a Juju 1 model.
 	LegacyJuju bool

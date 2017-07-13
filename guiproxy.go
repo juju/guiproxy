@@ -18,7 +18,7 @@ import (
 )
 
 // version holds the guiproxy program version.
-const version = "0.5.1"
+const version = "0.6.0"
 
 var program = filepath.Base(os.Args[0])
 
@@ -30,6 +30,9 @@ func main() {
 		log.Fatalf("cannot parse configuration options: %s", err)
 	}
 	log.Printf("%s %s\n", program, version)
+	if options.showVersion {
+		return
+	}
 	log.Println("configuring the server")
 	listenAddr := ":" + strconv.Itoa(options.port)
 	controllerAddr, err := juju.Info(options.controllerAddr)
@@ -54,13 +57,14 @@ func main() {
 		OriginAddr:     "http://0.0.0.0" + listenAddr,
 		GUIURL:         options.guiURL,
 		GUIConfig:      options.guiConfig,
+		BaseURL:        options.baseURL,
 		LegacyJuju:     options.legacyJuju,
 		NoColor:        options.noColor,
 	})
 
 	// Start the GUI proxy server.
 	log.Println("starting the server\n")
-	log.Printf("visit the GUI at http://0.0.0.0:%d%s\n", options.port, guiconfig.BaseURL)
+	log.Printf("visit the GUI at http://0.0.0.0:%d%s\n", options.port, options.baseURL)
 	if err := http.ListenAndServe(listenAddr, srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
 	}
@@ -81,6 +85,7 @@ func parseOptions() (*config, error) {
 	envName := flag.String("env", "", "select a predefined environment to run against between the following:\n"+envChoices())
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
+	showVersion := flag.Bool("version", false, "show application version and exit")
 	flag.Parse()
 	if !strings.HasPrefix(*guiAddr, "http") {
 		*guiAddr = "http://" + *guiAddr
@@ -96,6 +101,11 @@ func parseOptions() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
 	}
+	baseURL, err := guiconfig.BaseURL(overrides)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse base URL in config: %s", err)
+	}
+
 	// At this point we know that the provided environment name is valid.
 	if *controllerAddr == "" && *envName != "" {
 		*controllerAddr = guiconfig.Environments[*envName].ControllerAddr
@@ -106,8 +116,10 @@ func parseOptions() (*config, error) {
 		controllerAddr: *controllerAddr,
 		envName:        *envName,
 		guiConfig:      overrides,
+		baseURL:        baseURL,
 		legacyJuju:     *legacyJuju,
 		noColor:        *noColor,
+		showVersion:    *showVersion,
 	}, nil
 }
 
@@ -123,8 +135,10 @@ type config struct {
 	controllerAddr string
 	envName        string
 	guiConfig      map[string]interface{}
+	baseURL        string
 	legacyJuju     bool
 	noColor        bool
+	showVersion    bool
 }
 
 // usage provides the command help and usage information.
