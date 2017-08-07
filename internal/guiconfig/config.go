@@ -135,6 +135,7 @@ func envOverrides(url string) map[string]interface{} {
 		"bundleServiceURL": url + "/bundleservice/",
 		"charmstoreURL":    url + "/charmstore/",
 		"identityURL":      url + "/identity/",
+		"paymentURL":       url + "/payment/",
 		"plansURL":         url + "/plans/",
 		"termsURL":         url + "/terms/",
 		baseURLKey:         "/",
