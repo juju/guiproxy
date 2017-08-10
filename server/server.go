@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 
 	"github.com/juju/guiproxy/httpproxy"
 	"github.com/juju/guiproxy/internal/guiconfig"
@@ -36,21 +36,24 @@ const (
 	// dynamically generated Juju GUI configuration file.
 	jujuVersion       = "2.2.0"
 	legacyJujuVersion = "1.25.7"
+
+	// webSocketBufferSize holds the frame size for WebSocket messages.
+	webSocketBufferSize = 65536
 )
 
 // New creates and returns a new GUI proxy server.
 func New(p Params) http.Handler {
 	mux := http.NewServeMux()
 
-	var serveModel func(*websocket.Conn)
+	var serveModel http.Handler
 	if p.LegacyJuju {
-		serveModel = newWebSocketProxy(legacyModelDstTemplate, legacyModelSrcTemplate, p.OriginAddr, p.NoColor)
+		serveModel = newWebSocketProxy(legacyModelDstTemplate, legacyModelSrcTemplate, p.NoColor)
 	} else {
-		serveController := newWebSocketProxy(controllerDstTemplate, controllerSrcTemplate, p.OriginAddr, p.NoColor)
-		mux.Handle("/controller/", websocket.Handler(serveController))
-		serveModel = newWebSocketProxy(modelDstTemplate, modelSrcTemplate, p.OriginAddr, p.NoColor)
+		serveController := newWebSocketProxy(controllerDstTemplate, controllerSrcTemplate, p.NoColor)
+		mux.Handle("/controller/", serveController)
+		serveModel = newWebSocketProxy(modelDstTemplate, modelSrcTemplate, p.NoColor)
 	}
-	mux.Handle("/model/", websocket.Handler(serveModel))
+	mux.Handle("/model/", serveModel)
 
 	configColor, jujuProxyColor, guiProxyColor := pink, orange, yellow
 	if p.NoColor {
@@ -66,9 +69,6 @@ func New(p Params) http.Handler {
 type Params struct {
 	// ControllerAddr holds the address of the remote Juju controller.
 	ControllerAddr string
-
-	// OriginAddr holds the address from which the WebSocket request is made.
-	OriginAddr string
 
 	// GUIURL holds the URL on which the GUI sandbox instance is listening.
 	GUIURL *url.URL
@@ -90,28 +90,42 @@ type Params struct {
 // newWebSocketProxy returns a WebSocket handler that proxies the WebSocket
 // frames from the Juju GUI to Juju and vice versa. WebSocket addresses are
 // translated using the given source and destination templates.
-func newWebSocketProxy(dstTemplate, srcTemplate, origin string, noColor bool) func(*websocket.Conn) {
-	return func(guiWS *websocket.Conn) {
-		target := resolveWebSocketAddress(guiWS.Request().URL, dstTemplate)
+func newWebSocketProxy(dstTemplate, srcTemplate string, noColor bool) http.Handler {
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  webSocketBufferSize,
+		WriteBufferSize: webSocketBufferSize,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Upgrade the HTTP connection.
+		log.Printf("upgrading %s\n", req.URL)
+		guiConn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			log.Printf("cannot upgrade %s: %s", req.URL, err)
+			return
+		}
+		defer guiConn.Close()
 
 		// Open the WebSocket connection to the remote server.
+		target := resolveWebSocketAddress(req.URL, dstTemplate)
 		log.Printf("opening %s\n", target)
-		targetWS, err := wsConnect(target, origin)
+		targetConn, err := wsDial(target)
 		if err != nil {
-			log.Fatalf(err.Error())
+			log.Printf("cannot dial %s: %s", target, err)
+			return
 		}
+		defer targetConn.Close()
 
 		// Start copying WebSocket messages back and forth.
-		addr := targetWS.RemoteAddr().String()
+		addr := targetConn.RemoteAddr().String()
 		inColor, outColor := logColors(strings.HasPrefix(srcTemplate, "/model/"), noColor)
 		err = wsproxy.Copy(
-			targetWS,
-			guiWS,
+			targetConn,
+			guiConn,
 			logger.New(logger.AddPrefix("<-- "+addr), inColor),
 			logger.New(logger.AddPrefix("--> "+addr), outColor),
 		)
 		log.Printf("closed %s: %s\n", target, err)
-	}
+	})
 }
 
 // resolveWebSocketAddress returns a Juju WebSocket address based on the given
@@ -134,17 +148,19 @@ func resolveWebSocketAddress(u *url.URL, dstTemplate string) string {
 	return r.Replace(dstTemplate)
 }
 
-// wsConnect opens a secure WebSocket client connection to the given address
-// with the given origin. The TLS certificate verification is skipped.
-func wsConnect(addr, origin string) (*websocket.Conn, error) {
-	config, err := websocket.NewConfig(addr, origin)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create ws config for %s: %s", addr, err)
+// wsDial opens a secure WebSocket client connection to the given address. The
+// TLS certificate verification is skipped. The returned connection must be
+// closed by callers.
+func wsDial(addr string) (*websocket.Conn, error) {
+	dialer := &websocket.Dialer{
+		Proxy: http.ProxyFromEnvironment,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+		ReadBufferSize:  webSocketBufferSize,
+		WriteBufferSize: webSocketBufferSize,
 	}
-	config.TlsConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	conn, err := websocket.DialConfig(config)
+	conn, _, err := dialer.Dial(addr, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot dial %s: %s", addr, err)
 	}

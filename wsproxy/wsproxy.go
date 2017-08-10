@@ -3,7 +3,7 @@ package wsproxy
 import (
 	"encoding/json"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 
 	"github.com/juju/guiproxy/logger"
 )
@@ -34,15 +34,13 @@ func cp(dst, src *websocket.Conn, errCh chan error, apiLog logger.Interface) {
 	}
 }
 
-// copyJSON copies a single JSON frame sent by src to dst. Note that a simple
-// io.Copy would not work here, as copying without a specific codec would
-// result in truncated frames.
+// copyJSON copies a single JSON frame sent by src to dst.
 func copyJSON(dst, src *websocket.Conn) (string, error) {
 	var m *json.RawMessage
-	if err := websocket.JSON.Receive(src, &m); err != nil {
+	if err := src.ReadJSON(&m); err != nil {
 		return "", err
 	}
-	if err := websocket.JSON.Send(dst, m); err != nil {
+	if err := dst.WriteJSON(m); err != nil {
 		return "", err
 	}
 	return string(*m), nil

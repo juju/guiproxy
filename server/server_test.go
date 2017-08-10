@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 
 	it "github.com/juju/guiproxy/internal/testing"
 	"github.com/juju/guiproxy/server"
@@ -33,7 +33,6 @@ func TestNew(t *testing.T) {
 
 	proxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
-		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
 		BaseURL:        "/base/",
 	}))
@@ -42,7 +41,6 @@ func TestNew(t *testing.T) {
 
 	legacyProxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: legacyJujuURL.Host,
-		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
 		BaseURL:        "/base-legacy/",
 		LegacyJuju:     true,
@@ -52,7 +50,6 @@ func TestNew(t *testing.T) {
 
 	customConfigProxy := httptest.NewServer(server.New(server.Params{
 		ControllerAddr: jujuURL.Host,
-		OriginAddr:     "http://1.2.3.4:4242",
 		GUIURL:         guiURL,
 		BaseURL:        "/",
 		GUIConfig: map[string]interface{}{
@@ -118,23 +115,22 @@ func TestNew(t *testing.T) {
 }
 
 func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(t *testing.T) {
-	origin := "http://localhost/"
 	u := *serverURL
 	u.Scheme = "ws"
 	socketURL := u.String() + srcPath
 	return func(t *testing.T) {
 		// Connect to the remote WebSocket.
-		ws, err := websocket.Dial(socketURL, "", origin)
+		conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
 		it.AssertError(t, err, nil)
-		defer ws.Close()
+		defer conn.Close()
 		// Send a message.
 		msg := jsonMessage{
 			Request: "my api request",
 		}
-		err = websocket.JSON.Send(ws, msg)
+		err = conn.WriteJSON(msg)
 		it.AssertError(t, err, nil)
 		// Retrieve the response from the WebSocket server.
-		err = websocket.JSON.Receive(ws, &msg)
+		err = conn.ReadJSON(&msg)
 		it.AssertError(t, err, nil)
 		it.AssertString(t, msg.Request, "my api request")
 		it.AssertString(t, msg.Response, dstPath)
@@ -243,8 +239,8 @@ func newGUIServer() http.Handler {
 // controller and model.
 func newJujuServer() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/api", websocket.Handler(echoHandler))
-	mux.Handle("/model/", websocket.Handler(echoHandler))
+	mux.Handle("/api", http.HandlerFunc(echoHandler))
+	mux.Handle("/model/", http.HandlerFunc(echoHandler))
 	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		io.WriteString(w, "juju: "+req.URL.Path)
 	})
@@ -255,7 +251,7 @@ func newJujuServer() http.Handler {
 // remote Juju 1 model.
 func newLegacyJujuServer() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/", websocket.Handler(echoHandler))
+	mux.Handle("/", http.HandlerFunc(echoHandler))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, req *http.Request) {
 		io.WriteString(w, "juju: "+req.URL.Path)
 	})
@@ -263,20 +259,24 @@ func newLegacyJujuServer() http.Handler {
 }
 
 // echoHandler is a WebSocket handler repeating what it receives.
-func echoHandler(ws *websocket.Conn) {
-	path := ws.Request().URL.Path
+func echoHandler(w http.ResponseWriter, req *http.Request) {
+	upgrader := websocket.Upgrader{}
+	conn, err := upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
 	var msg jsonMessage
-	var err error
 	for {
-		err = websocket.JSON.Receive(ws, &msg)
+		err = conn.ReadJSON(&msg)
 		if err == io.EOF {
 			return
 		}
 		if err != nil {
 			panic(err)
 		}
-		msg.Response = path
-		if err = websocket.JSON.Send(ws, msg); err != nil {
+		msg.Response = req.URL.Path
+		if err = conn.WriteJSON(msg); err != nil {
 			panic(err)
 		}
 	}

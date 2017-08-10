@@ -34,7 +34,6 @@ func main() {
 		return
 	}
 	log.Println("configuring the server")
-	listenAddr := ":" + strconv.Itoa(options.port)
 	controllerAddr, err := juju.Info(options.controllerAddr)
 	if err != nil {
 		log.Fatalf("cannot retrieve Juju URLs: %s", err)
@@ -54,7 +53,6 @@ func main() {
 	// Set up the HTTP server.
 	srv := server.New(server.Params{
 		ControllerAddr: controllerAddr,
-		OriginAddr:     "http://0.0.0.0" + listenAddr,
 		GUIURL:         options.guiURL,
 		GUIConfig:      options.guiConfig,
 		BaseURL:        options.baseURL,
@@ -65,7 +63,7 @@ func main() {
 	// Start the GUI proxy server.
 	log.Println("starting the server\n")
 	log.Printf("visit the GUI at http://0.0.0.0:%d%s\n", options.port, options.baseURL)
-	if err := http.ListenAndServe(listenAddr, srv); err != nil {
+	if err := http.ListenAndServe(":"+strconv.Itoa(options.port), srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
 	}
 }
