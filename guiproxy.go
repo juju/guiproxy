@@ -14,6 +14,7 @@ import (
 
 	"github.com/juju/guiproxy/internal/guiconfig"
 	"github.com/juju/guiproxy/internal/juju"
+	"github.com/juju/guiproxy/internal/network"
 	"github.com/juju/guiproxy/server"
 )
 
@@ -62,7 +63,7 @@ func main() {
 
 	// Start the GUI proxy server.
 	log.Println("starting the server\n")
-	log.Printf("visit the GUI at http://0.0.0.0:%d%s\n", options.port, options.baseURL)
+	printAddresses(options.port, options.baseURL)
 	if err := http.ListenAndServe(":"+strconv.Itoa(options.port), srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
 	}
@@ -154,4 +155,19 @@ func envChoices() string {
 	}
 	sort.Strings(texts)
 	return strings.Join(texts, "\n")
+}
+
+// printAddresses prints the URL addresses from which is possible to reach the
+// GUI as served by guiproxy.
+func printAddresses(port int, base string) {
+	addrs, err := network.Addresses()
+	if err != nil || len(addrs) == 0 {
+		log.Printf("visit the GUI at http://localhost:%d%s\n", port, base)
+		return
+	}
+	urls := make([]string, len(addrs))
+	for i, addr := range addrs {
+		urls[i] = fmt.Sprintf("  http://%s:%d%s\n", addr, port, base)
+	}
+	log.Printf("visit the GUI at any of the following addresses:\n%s\n", strings.Join(urls, ""))
 }

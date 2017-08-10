@@ -37,6 +37,21 @@ func AssertError(t *testing.T, obtained, expected error) {
 	}
 }
 
+// AssertStringSlice fails if the given slices are not equal.
+func AssertStringSlice(t *testing.T, obtained, expected []string) {
+	if obtained == nil && expected == nil {
+		return
+	}
+	if obtained == nil || expected == nil || len(obtained) != len(expected) {
+		t.Fatalf("%s%#v !=\n%#v", caller(), obtained, expected)
+	}
+	for i := range obtained {
+		if obtained[i] != expected[i] {
+			t.Fatalf("%s%#v !=\n%#v", caller(), obtained, expected)
+		}
+	}
+}
+
 // MustParseURL parses the given URL, and panics if it is not parsable.
 func MustParseURL(t *testing.T, rawurl string) *url.URL {
 	u, err := url.Parse(rawurl)

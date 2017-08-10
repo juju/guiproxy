@@ -97,7 +97,6 @@ func newWebSocketProxy(dstTemplate, srcTemplate string, noColor bool) http.Handl
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// Upgrade the HTTP connection.
-		log.Printf("upgrading %s\n", req.URL)
 		guiConn, err := upgrader.Upgrade(w, req, nil)
 		if err != nil {
 			log.Printf("cannot upgrade %s: %s", req.URL, err)
