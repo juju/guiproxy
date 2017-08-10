@@ -18,7 +18,7 @@ func TestInfo(t *testing.T) {
 	serverURL := it.MustParseURL(t, ts.URL)
 
 	// Define the tests.
-	infoTests := []struct {
+	tests := []struct {
 		about                  string
 		commandOut             string
 		commandErr             error
@@ -68,7 +68,7 @@ func TestInfo(t *testing.T) {
 	}}
 
 	// Run the tests.
-	for _, test := range infoTests {
+	for _, test := range tests {
 		t.Run(test.about, func(t *testing.T) {
 			restore := patchCommand(t, []byte(test.commandOut), test.commandErr)
 			defer restore()

@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 
 	it "github.com/juju/guiproxy/internal/testing"
 	"github.com/juju/guiproxy/wsproxy"
@@ -16,27 +17,26 @@ import (
 
 func TestCopy(t *testing.T) {
 	// Set up a target WebSocket server.
-	ping := httptest.NewServer(websocket.Handler(pingHandler))
+	ping := httptest.NewServer(http.HandlerFunc(pingHandler))
 	defer ping.Close()
 
 	// Set up the WebSocket proxy that copies the messages back and forth.
 	conn1Log, conn2Log := &logStorage{}, &logStorage{}
-	proxy := httptest.NewServer(websocket.Handler(newProxyHandler(wsURL(ping.URL), conn1Log, conn2Log)))
+	proxy := httptest.NewServer(newProxyHandler(wsURL(ping.URL), conn1Log, conn2Log))
 	defer proxy.Close()
 
 	// Connect to the proxy.
-	conn, err := websocket.Dial(wsURL(proxy.URL), "", "http://localhost")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL(proxy.URL), nil)
 	it.AssertError(t, err, nil)
-	defer conn.Close()
 
 	// Send messages and check that ping responses are properly received.
 	send := func(content string) string {
 		msg := jsonMessage{
 			Content: content,
 		}
-		err = websocket.JSON.Send(conn, msg)
+		err = conn.WriteJSON(msg)
 		it.AssertError(t, err, nil)
-		err = websocket.JSON.Receive(conn, &msg)
+		err = conn.ReadJSON(&msg)
 		it.AssertError(t, err, nil)
 		return msg.Content
 	}
@@ -66,11 +66,12 @@ func TestCopy(t *testing.T) {
 }
 
 // pingHandler is a WebSocket handler responding to pings.
-func pingHandler(ws *websocket.Conn) {
+func pingHandler(w http.ResponseWriter, req *http.Request) {
+	conn := upgrade(w, req)
+	defer conn.Close()
 	var msg jsonMessage
-	var err error
 	for {
-		err = websocket.JSON.Receive(ws, &msg)
+		err := conn.ReadJSON(&msg)
 		if err == io.EOF {
 			return
 		}
@@ -78,7 +79,7 @@ func pingHandler(ws *websocket.Conn) {
 			panic(err)
 		}
 		msg.Content += " pong"
-		if err = websocket.JSON.Send(ws, msg); err != nil {
+		if err = conn.WriteJSON(msg); err != nil {
 			panic(err)
 		}
 	}
@@ -86,17 +87,19 @@ func pingHandler(ws *websocket.Conn) {
 
 // newCopyHandler returns a WebSocket handler copying from the given WebSocket
 // server.
-func newProxyHandler(srvURL string, conn1Log, conn2Log *logStorage) func(ws *websocket.Conn) {
-	return func(ws *websocket.Conn) {
-		conn, err := websocket.Dial(srvURL, "", "http://localhost")
+func newProxyHandler(srvURL string, conn1Log, conn2Log *logStorage) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		conn1 := upgrade(w, req)
+		defer conn1.Close()
+		conn2, _, err := websocket.DefaultDialer.Dial(srvURL, nil)
 		if err != nil {
 			panic(err)
 		}
-		defer conn.Close()
-		if err := wsproxy.Copy(ws, conn, conn1Log, conn2Log); err != nil {
+		defer conn2.Close()
+		if err := wsproxy.Copy(conn1, conn2, conn1Log, conn2Log); err != nil {
 			panic(err)
 		}
-	}
+	})
 }
 
 // logStorage is a logger.Interface used for testing purposes.
@@ -113,6 +116,19 @@ func (ls *logStorage) Print(msg string) {
 func wsURL(u string) string {
 	return strings.Replace(u, "http://", "ws://", 1)
 }
+
+// upgrade upgrades the given request and returns the resulting WebSocket
+// connection.
+func upgrade(w http.ResponseWriter, req *http.Request) *websocket.Conn {
+	conn, err := upgrader.Upgrade(w, req, nil)
+	if err != nil {
+		panic(err)
+	}
+	return conn
+}
+
+// upgrader holds a zero valued WebSocket upgrader.
+var upgrader = websocket.Upgrader{}
 
 // jsonMessage holds messages used for testing the WebSocket handlers.
 type jsonMessage struct {
