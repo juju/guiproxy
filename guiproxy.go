@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -16,10 +15,11 @@ import (
 	"github.com/juju/guiproxy/internal/juju"
 	"github.com/juju/guiproxy/internal/network"
 	"github.com/juju/guiproxy/server"
+	"github.com/juju/guiproxy/stringflag"
 )
 
 // version holds the guiproxy program version.
-const version = "0.6.1"
+const version = "0.7.0"
 
 var program = filepath.Base(os.Args[0])
 
@@ -76,16 +76,18 @@ func parseOptions() (*config, error) {
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", `controller address (defaults to the address of the current controller), for instance:
 		-controller jimm.jujucharms.com:443`)
-	guiConfig := flag.String("config", "", `override or extend fields in the GUI configuration, for instance:
-		-config gisf:true
-		-config 'gisf: true, charmstoreURL: "https://1.2.3.4/cs"'
-		-config 'flags: {"exterminate": true}'`)
-
+	guiConfig := stringflag.Map("config", nil, `override or extend GUI options with a JSON key/value string, with or without enclosing braces, for instance:
+		-config '{"gisf": true}'
+		-config '"gisf": true, "charmstoreURL": "https://1.2.3.4/cs"'
+		-config '"flags": {"exterminate": true}'`)
 	envName := flag.String("env", "", "select a predefined environment to run against between the following:\n"+envChoices())
+	flags := stringflag.Slice("flags", nil, `a comma separated list of GUI feature flags to activate, for instance:
+		- flags profile,status`)
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	showVersion := flag.Bool("version", false, "show application version and exit")
 	flag.Parse()
+
 	if !strings.HasPrefix(*guiAddr, "http") {
 		*guiAddr = "http://" + *guiAddr
 	}
@@ -93,27 +95,24 @@ func parseOptions() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI address: %s", err)
 	}
-	if *envName == "brian" {
-		*envName = "qa"
-	}
-	overrides, err := guiconfig.ParseOverridesForEnv(*envName, *guiConfig)
+	env, err := guiconfig.GetEnvironment(*envName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
+		return nil, fmt.Errorf("cannot get the environment: %s", err)
 	}
+	overrides := guiconfig.Overrides(env, *flags, *guiConfig)
 	baseURL, err := guiconfig.BaseURL(overrides)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse base URL in config: %s", err)
 	}
 
-	// At this point we know that the provided environment name is valid.
-	if *controllerAddr == "" && *envName != "" {
-		*controllerAddr = guiconfig.Environments[*envName].ControllerAddr
+	if *controllerAddr == "" && env.ControllerAddr != "" {
+		*controllerAddr = env.ControllerAddr
 	}
 	return &config{
 		port:           *port,
 		guiURL:         guiURL,
 		controllerAddr: *controllerAddr,
-		envName:        *envName,
+		envName:        env.Name,
 		guiConfig:      overrides,
 		baseURL:        baseURL,
 		legacyJuju:     *legacyJuju,
@@ -150,10 +149,9 @@ func usage() {
 // envChoices pretty formats GUI environment choices.
 func envChoices() string {
 	texts := make([]string, 0, len(guiconfig.Environments))
-	for name := range guiconfig.Environments {
-		texts = append(texts, "		- "+name)
+	for _, env := range guiconfig.Environments {
+		texts = append(texts, fmt.Sprintf("		- %s", env))
 	}
-	sort.Strings(texts)
 	return strings.Join(texts, "\n")
 }
 

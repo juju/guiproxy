@@ -81,17 +81,17 @@ func TestNew(t *testing.T) {
 	}
 }
 
-var parseOverridesForEnvTests = []struct {
+var overridesTests = []struct {
 	about             string
-	input             string
-	env               string
+	env               guiconfig.Environment
+	flags             []string
+	config            map[string]interface{}
 	expectedOverrides map[string]interface{}
-	expectedError     error
 }{{
 	about: "no overrides",
 }, {
-	about: "with production",
-	env:   "production",
+	about: "env: production",
+	env:   mustGetEnvironment("production"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
@@ -103,8 +103,8 @@ var parseOverridesForEnvTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "with staging",
-	env:   "staging",
+	about: "env: staging",
+	env:   mustGetEnvironment("staging"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
@@ -116,8 +116,8 @@ var parseOverridesForEnvTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "with qa",
-	env:   "qa",
+	about: "env: qa",
+	env:   mustGetEnvironment("qa"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
 		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
@@ -129,55 +129,169 @@ var parseOverridesForEnvTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "success: single bool",
-	input: "gisf: true",
+	about: "flags: single",
+	flags: []string{"engage"},
+	expectedOverrides: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+	},
+}, {
+	about: "flags: multiple",
+	flags: []string{"these", "are", "the", "voyages"},
+	expectedOverrides: map[string]interface{}{
+		"flags": map[string]bool{
+			"these":   true,
+			"are":     true,
+			"the":     true,
+			"voyages": true,
+		},
+	},
+}, {
+	about: "config: single bool",
+	config: map[string]interface{}{
+		"gisf": true,
+	},
 	expectedOverrides: map[string]interface{}{
 		"gisf": true,
 	},
 }, {
-	about: "success: single text",
-	input: `charmstoreURL: "https://1.2.3.4/cs/"`,
+	about: "config: single text",
+	config: map[string]interface{}{
+		"charmstoreURL": "https://1.2.3.4/cs/",
+	},
 	expectedOverrides: map[string]interface{}{
 		"charmstoreURL": "https://1.2.3.4/cs/",
 	},
 }, {
-	about: "success: multiple",
-	input: `answer: 42, socketTemplate: "/model-api", gisf: false`,
+	about: "config: multiple",
+	config: map[string]interface{}{
+		"answer":         42,
+		"socketTemplate": "/model-api",
+		"gisf":           false,
+	},
 	expectedOverrides: map[string]interface{}{
 		"answer":         42,
 		"socketTemplate": "/model-api",
 		"gisf":           false,
 	},
 }, {
-	about: "success: trim spaces",
-	input: ` apiAddress : "1.2.3.4" , gisf  :  true `,
-	expectedOverrides: map[string]interface{}{
-		"apiAddress": "1.2.3.4",
-		"gisf":       true,
+	about: "overlap: config overrides env",
+	env:   mustGetEnvironment("production"),
+	config: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf": false,
 	},
-}, {}, {
-	about:         "failure: invalid environment",
-	env:           "bad-wolf",
-	expectedError: errors.New(`invalid environment: "bad-wolf"`),
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
+		"identityURL":      "https://api.jujucharms.com/identity/",
+		"paymentURL":       "https://api.jujucharms.com/payment/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf":    false,
+		"baseUrl": "/",
+	},
 }, {
-	about:         "failure: invalid pairs",
-	input:         "bad, wolf",
-	expectedError: errors.New(`invalid key/value pair "bad"`),
+	about: "overlap: config overrides flags",
+	flags: []string{"these", "are", "the", "voyages"},
+	config: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf": false,
+	},
+	expectedOverrides: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf": false,
+	},
 }, {
-	about:         "failure: empty overrides",
-	input:         "    ",
-	expectedError: errors.New(`invalid key/value pair ""`),
-}, {
-	about:         "failure: invalid JSON",
-	input:         "gisf: bad-wolf",
-	expectedError: errors.New("invalid value for key gisf: invalid character"),
+	about: "overlap: all together",
+	env:   mustGetEnvironment("production"),
+	flags: []string{"these", "are", "the", "voyages"},
+	config: map[string]interface{}{
+		"gisf":          false,
+		"charmstoreURL": "https://1.2.3.4/cs/",
+	},
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://1.2.3.4/cs/",
+		"identityURL":      "https://api.jujucharms.com/identity/",
+		"paymentURL":       "https://api.jujucharms.com/payment/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+		"flags": map[string]bool{
+			"these":   true,
+			"are":     true,
+			"the":     true,
+			"voyages": true,
+		},
+		"gisf":    false,
+		"baseUrl": "/",
+	},
 }}
 
-func TestParseOverridesForEnv(t *testing.T) {
-	for _, test := range parseOverridesForEnvTests {
+func TestOverrides(t *testing.T) {
+	for _, test := range overridesTests {
 		t.Run(test.about, func(t *testing.T) {
-			overrides, err := guiconfig.ParseOverridesForEnv(test.env, test.input)
-			assertMap(t, overrides, test.expectedOverrides)
+			overrides := guiconfig.Overrides(test.env, test.flags, test.config)
+			it.AssertMap(t, overrides, test.expectedOverrides)
+		})
+	}
+}
+
+var getEnvironmentTests = []struct {
+	about                  string
+	name                   string
+	expectedName           string
+	expectedControllerAddr string
+	expectedError          error
+}{{
+	about: "empty name",
+}, {
+	about:                  "production environment",
+	name:                   "production",
+	expectedName:           "production",
+	expectedControllerAddr: "jimm.jujucharms.com:443",
+}, {
+	about:                  "staging environment",
+	name:                   "staging",
+	expectedName:           "staging",
+	expectedControllerAddr: "jimm.staging.jujucharms.com:443",
+}, {
+	about:                  "qa environment",
+	name:                   "qa",
+	expectedName:           "qa",
+	expectedControllerAddr: "jimm.jujugui.org:443",
+}, {
+	about:                  "production environment alias",
+	name:                   "prod",
+	expectedName:           "production",
+	expectedControllerAddr: "jimm.jujucharms.com:443",
+}, {
+	about:                  "qa environment alias",
+	name:                   "brian",
+	expectedName:           "qa",
+	expectedControllerAddr: "jimm.jujugui.org:443",
+}, {
+	about:         "failure: not found",
+	name:          "bad-wolf",
+	expectedError: errors.New(`environment "bad-wolf" not found`),
+}}
+
+func TestGetEnvironment(t *testing.T) {
+	for _, test := range getEnvironmentTests {
+		t.Run(test.about, func(t *testing.T) {
+			env, err := guiconfig.GetEnvironment(test.name)
+			it.AssertString(t, env.Name, test.expectedName)
+			it.AssertString(t, env.ControllerAddr, test.expectedControllerAddr)
 			it.AssertError(t, err, test.expectedError)
 		})
 	}
@@ -294,18 +408,6 @@ func TestBaseURL(t *testing.T) {
 	}
 }
 
-func assertMap(t *testing.T, obtained, expected map[string]interface{}) {
-	o, err := json.Marshal(obtained)
-	if err != nil {
-		t.Fatalf("cannot marshal obtained overrides: %s", err)
-	}
-	e, err := json.Marshal(expected)
-	if err != nil {
-		t.Fatalf("cannot marshal expected overrides: %s", err)
-	}
-	it.AssertString(t, string(o), string(e))
-}
-
 func rawMessage(t *testing.T, s string) *json.RawMessage {
 	b, err := json.Marshal(s)
 	if err != nil {
@@ -313,4 +415,14 @@ func rawMessage(t *testing.T, s string) *json.RawMessage {
 	}
 	msg := json.RawMessage(b)
 	return &msg
+}
+
+// mustGetEnvironment retrieves the GUI environment with the given name, or
+// panics if the environment cannot be found.
+func mustGetEnvironment(name string) guiconfig.Environment {
+	env, err := guiconfig.GetEnvironment(name)
+	if err != nil {
+		panic(err)
+	}
+	return env
 }
