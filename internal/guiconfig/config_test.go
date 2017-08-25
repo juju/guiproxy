@@ -81,19 +81,16 @@ func TestNew(t *testing.T) {
 	}
 }
 
-var parseOverridesTests = []struct {
+var overridesTests = []struct {
 	about             string
 	env               guiconfig.Environment
-	jsonConfig        string
+	flags             []string
+	config            map[string]interface{}
 	expectedOverrides map[string]interface{}
-	expectedError     error
 }{{
 	about: "no overrides",
 }, {
-	about:      "empty JSON config",
-	jsonConfig: "   ",
-}, {
-	about: "env production",
+	about: "env: production",
 	env:   mustGetEnvironment("production"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
@@ -106,7 +103,7 @@ var parseOverridesTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "env staging",
+	about: "env: staging",
 	env:   mustGetEnvironment("staging"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
@@ -119,7 +116,7 @@ var parseOverridesTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "env qa",
+	about: "env: qa",
 	env:   mustGetEnvironment("qa"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
@@ -132,63 +129,61 @@ var parseOverridesTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about:      "single bool",
-	jsonConfig: `{"gisf": true}`,
+	about: "flags: single",
+	flags: []string{"engage"},
+	expectedOverrides: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+	},
+}, {
+	about: "flags: multiple",
+	flags: []string{"these", "are", "the", "voyages"},
+	expectedOverrides: map[string]interface{}{
+		"flags": map[string]bool{
+			"these":   true,
+			"are":     true,
+			"the":     true,
+			"voyages": true,
+		},
+	},
+}, {
+	about: "config: single bool",
+	config: map[string]interface{}{
+		"gisf": true,
+	},
 	expectedOverrides: map[string]interface{}{
 		"gisf": true,
 	},
 }, {
-	about:      "single text",
-	jsonConfig: `{"charmstoreURL": "https://1.2.3.4/cs/"}`,
+	about: "config: single text",
+	config: map[string]interface{}{
+		"charmstoreURL": "https://1.2.3.4/cs/",
+	},
 	expectedOverrides: map[string]interface{}{
 		"charmstoreURL": "https://1.2.3.4/cs/",
 	},
 }, {
-	about:      "multiple",
-	jsonConfig: `{"answer": 42, "socketTemplate": "/model-api", "gisf": false}`,
+	about: "config: multiple",
+	config: map[string]interface{}{
+		"answer":         42,
+		"socketTemplate": "/model-api",
+		"gisf":           false,
+	},
 	expectedOverrides: map[string]interface{}{
 		"answer":         42,
 		"socketTemplate": "/model-api",
 		"gisf":           false,
 	},
 }, {
-	about:      "trim spaces",
-	jsonConfig: `  {  "apiAddress" : "1.2.3.4" , "gisf"  :  true }`,
-	expectedOverrides: map[string]interface{}{
-		"apiAddress": "1.2.3.4",
-		"gisf":       true,
+	about: "overlap: config overrides env",
+	env:   mustGetEnvironment("production"),
+	config: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf": false,
 	},
-}, {
-	about:      "no braces: single bool",
-	jsonConfig: `"gisf": true`,
-	expectedOverrides: map[string]interface{}{
-		"gisf": true,
-	},
-}, {
-	about:      "no braces: single text",
-	jsonConfig: `"charmstoreURL": "https://1.2.3.4/cs/"`,
-	expectedOverrides: map[string]interface{}{
-		"charmstoreURL": "https://1.2.3.4/cs/",
-	},
-}, {
-	about:      "no braces: multiple",
-	jsonConfig: `"answer": 42, "socketTemplate": "/model-api", "gisf": false`,
-	expectedOverrides: map[string]interface{}{
-		"answer":         42,
-		"socketTemplate": "/model-api",
-		"gisf":           false,
-	},
-}, {
-	about:      "no braces: trim spaces",
-	jsonConfig: `  "apiAddress" : "1.2.3.4" , "gisf"  :  true `,
-	expectedOverrides: map[string]interface{}{
-		"apiAddress": "1.2.3.4",
-		"gisf":       true,
-	},
-}, {
-	about:      "overlap: env and json",
-	env:        mustGetEnvironment("production"),
-	jsonConfig: `"gisf": false`,
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
@@ -196,22 +191,58 @@ var parseOverridesTests = []struct {
 		"paymentURL":       "https://api.jujucharms.com/payment/",
 		"plansURL":         "https://api.jujucharms.com/plans/",
 		"termsURL":         "https://api.jujucharms.com/terms/",
-		// The environment configuration is overridden.
+		"flags": map[string]bool{
+			"engage": true,
+		},
 		"gisf":    false,
 		"baseUrl": "/",
 	},
 }, {
-	about:         "failure: invalid JSON config",
-	jsonConfig:    "bad, wolf",
-	expectedError: errors.New(`invalid JSON config "{bad, wolf}"`),
+	about: "overlap: config overrides flags",
+	flags: []string{"these", "are", "the", "voyages"},
+	config: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf": false,
+	},
+	expectedOverrides: map[string]interface{}{
+		"flags": map[string]bool{
+			"engage": true,
+		},
+		"gisf": false,
+	},
+}, {
+	about: "overlap: all together",
+	env:   mustGetEnvironment("production"),
+	flags: []string{"these", "are", "the", "voyages"},
+	config: map[string]interface{}{
+		"gisf":          false,
+		"charmstoreURL": "https://1.2.3.4/cs/",
+	},
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://1.2.3.4/cs/",
+		"identityURL":      "https://api.jujucharms.com/identity/",
+		"paymentURL":       "https://api.jujucharms.com/payment/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+		"flags": map[string]bool{
+			"these":   true,
+			"are":     true,
+			"the":     true,
+			"voyages": true,
+		},
+		"gisf":    false,
+		"baseUrl": "/",
+	},
 }}
 
-func TestParseOverrides(t *testing.T) {
-	for _, test := range parseOverridesTests {
+func TestOverrides(t *testing.T) {
+	for _, test := range overridesTests {
 		t.Run(test.about, func(t *testing.T) {
-			overrides, err := guiconfig.ParseOverrides(test.env, test.jsonConfig)
-			assertMap(t, overrides, test.expectedOverrides)
-			it.AssertError(t, err, test.expectedError)
+			overrides := guiconfig.Overrides(test.env, test.flags, test.config)
+			it.AssertMap(t, overrides, test.expectedOverrides)
 		})
 	}
 }
@@ -375,18 +406,6 @@ func TestBaseURL(t *testing.T) {
 			it.AssertString(t, baseURL, test.expectedURL)
 		})
 	}
-}
-
-func assertMap(t *testing.T, obtained, expected map[string]interface{}) {
-	o, err := json.Marshal(obtained)
-	if err != nil {
-		t.Fatalf("cannot marshal obtained overrides: %s", err)
-	}
-	e, err := json.Marshal(expected)
-	if err != nil {
-		t.Fatalf("cannot marshal expected overrides: %s", err)
-	}
-	it.AssertString(t, string(o), string(e))
 }
 
 func rawMessage(t *testing.T, s string) *json.RawMessage {

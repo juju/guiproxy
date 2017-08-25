@@ -65,36 +65,37 @@ type Context struct {
 	ModelTemplate string
 }
 
-// ParseOverrides generates and returns overrides from the given environment
-// (for instance the production or qa env) and the given JSON configuration
-// (provided with or without the enclosing braces, like `{"gisf": true}` or
-// `"gisf": true; "charmstoreURL": "https://1.2.3.4/cs"`). If there is an
-// overlap between configuration keys, the JSON overrides the environment.
-func ParseOverrides(env Environment, jsonConfig string) (map[string]interface{}, error) {
-	// Prepare the JSON pairs.
-	var jsonOverrides map[string]interface{}
-	jsonConfig = strings.TrimSpace(jsonConfig)
-	if jsonConfig != "" {
-		if !strings.HasPrefix(jsonConfig, "{") {
-			jsonConfig = "{" + jsonConfig + "}"
-		}
-		if err := json.Unmarshal([]byte(jsonConfig), &jsonOverrides); err != nil {
-			return nil, fmt.Errorf("invalid JSON config %q: %v", jsonConfig, err)
-		}
+// Overrides generates and returns overrides from the given GUI environment
+// (for instance the production or qa env), the given GUI feature flags
+// (provided as a slice of strings), and the given GUI configuration. If there
+// is an overlap between parameters, the GUI configuration overrides flags, and
+// flags override the environment options.
+func Overrides(env Environment, flags []string, config map[string]interface{}) map[string]interface{} {
+	numOverrides := len(env.overrides) + len(config)
+	numFlags := len(flags)
+	if numFlags != 0 {
+		numOverrides += 1
+	} else if numOverrides == 0 {
+		return nil
 	}
-	// Populate the overrides.
-	numOverrides := len(env.overrides) + len(jsonOverrides)
-	if numOverrides == 0 {
-		return nil, nil
-	}
+	// Handle environment specific overrides.
 	overrides := make(map[string]interface{}, numOverrides)
 	for k, v := range env.overrides {
 		overrides[k] = v
 	}
-	for k, v := range jsonOverrides {
+	// Handle feature flags.
+	if numFlags != 0 {
+		fs := make(map[string]bool, numFlags)
+		for _, flag := range flags {
+			fs[flag] = true
+		}
+		overrides["flags"] = fs
+	}
+	// Handle provided configuration options.
+	for k, v := range config {
 		overrides[k] = v
 	}
-	return overrides, nil
+	return overrides
 }
 
 // GetEnvironment returns the environment with the given name.

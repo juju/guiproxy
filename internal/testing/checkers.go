@@ -1,6 +1,7 @@
 package testing
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -49,6 +50,22 @@ func AssertStringSlice(t *testing.T, obtained, expected []string) {
 		if obtained[i] != expected[i] {
 			t.Fatalf("%s%#v !=\n%#v", caller(), obtained, expected)
 		}
+	}
+}
+
+// AssertMap fails if the given maps are not equal.
+func AssertMap(t *testing.T, obtained, expected map[string]interface{}) {
+	obtainedBytes, err := json.Marshal(obtained)
+	if err != nil {
+		t.Fatalf("%scannot marshal obtained map: %s", caller(), err)
+	}
+	expectedBytes, err := json.Marshal(expected)
+	if err != nil {
+		t.Fatalf("%scannot marshal expected map: %s", caller(), err)
+	}
+	o, e := string(obtainedBytes), string(expectedBytes)
+	if o != e {
+		t.Fatalf("%s%q !=\n%q", caller(), o, e)
 	}
 }
 
