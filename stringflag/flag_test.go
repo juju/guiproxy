@@ -138,6 +138,49 @@ var mapTests = []struct {
 	},
 	expectedStringValue: `{"gisf":true}`,
 }, {
+	about:               "empty object",
+	name:                "empty",
+	value:               `{}`,
+	expectedValue:       map[string]interface{}{},
+	expectedStringValue: "{}",
+}, {
+	about: "no braces: single pair",
+	name:  "single",
+	value: `"gisf": true`,
+	expectedValue: map[string]interface{}{
+		"gisf": true,
+	},
+	expectedStringValue: `{"gisf":true}`,
+}, {
+	about: "no braces: multiple pairs",
+	name:  "multiple",
+	value: `"gisf": true, "url": "https://1.2.3.4"`,
+	expectedValue: map[string]interface{}{
+		"gisf": true,
+		"url":  "https://1.2.3.4",
+	},
+	expectedStringValue: `{"gisf":true,"url":"https://1.2.3.4"}`,
+}, {
+	about: "no braces: nested map",
+	name:  "nested",
+	value: `"gisf": true, "flags": {"profile": true, "status": true}`,
+	expectedValue: map[string]interface{}{
+		"gisf": true,
+		"flags": map[string]bool{
+			"profile": true,
+			"status":  true,
+		},
+	},
+	expectedStringValue: `{"flags":{"profile":true,"status":true},"gisf":true}`,
+}, {
+	about: "no braces: weird formatting",
+	name:  "weird",
+	value: `    "gisf" :  true  `,
+	expectedValue: map[string]interface{}{
+		"gisf": true,
+	},
+	expectedStringValue: `{"gisf":true}`,
+}, {
 	about:               "empty string",
 	name:                "empty",
 	expectedValue:       map[string]interface{}{},
