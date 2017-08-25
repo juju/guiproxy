@@ -73,13 +73,13 @@ type Context struct {
 func Overrides(env Environment, flags []string, config map[string]interface{}) map[string]interface{} {
 	numOverrides := len(env.overrides) + len(config)
 	numFlags := len(flags)
-	if numFlags != 0 {
+	if numFlags > 0 {
 		numOverrides += 1
 	} else if numOverrides == 0 {
 		return nil
 	}
-	// Handle environment specific overrides.
 	overrides := make(map[string]interface{}, numOverrides)
+	// Handle environment specific overrides.
 	for k, v := range env.overrides {
 		overrides[k] = v
 	}
