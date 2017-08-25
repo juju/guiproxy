@@ -66,65 +66,93 @@ type Context struct {
 }
 
 // ParseOverrides generates and returns overrides from the given environment
-// (for instance "production" or "staging") and the given JSON configuration
-// (provided with or without the enclosing brackets, like `{"gisf": true}` or
+// (for instance the production or qa env) and the given JSON configuration
+// (provided with or without the enclosing braces, like `{"gisf": true}` or
 // `"gisf": true; "charmstoreURL": "https://1.2.3.4/cs"`). If there is an
 // overlap between configuration keys, the JSON overrides the environment.
-func ParseOverrides(envName, jsonConfig string) (map[string]interface{}, error) {
-	// Parse environment pairs.
-	envPairs, err := envPairs(envName)
-	if err != nil {
-		return nil, err
-	}
-	// Parse JSON pairs.
-	var jsonPairs map[string]interface{}
+func ParseOverrides(env Environment, jsonConfig string) (map[string]interface{}, error) {
+	// Prepare the JSON pairs.
+	var jsonOverrides map[string]interface{}
 	jsonConfig = strings.TrimSpace(jsonConfig)
 	if jsonConfig != "" {
 		if !strings.HasPrefix(jsonConfig, "{") {
 			jsonConfig = "{" + jsonConfig + "}"
 		}
-		if err := json.Unmarshal([]byte(jsonConfig), &jsonPairs); err != nil {
+		if err := json.Unmarshal([]byte(jsonConfig), &jsonOverrides); err != nil {
 			return nil, fmt.Errorf("invalid JSON config %q: %v", jsonConfig, err)
 		}
 	}
 	// Populate the overrides.
-	numOverrides := len(envPairs) + len(jsonPairs)
+	numOverrides := len(env.overrides) + len(jsonOverrides)
 	if numOverrides == 0 {
 		return nil, nil
 	}
 	overrides := make(map[string]interface{}, numOverrides)
-	for k, v := range envPairs {
+	for k, v := range env.overrides {
 		overrides[k] = v
 	}
-	for k, v := range jsonPairs {
+	for k, v := range jsonOverrides {
 		overrides[k] = v
 	}
 	return overrides, nil
 }
 
-// Environments holds a map of environment names to their corresponding info.
-var Environments = map[string]env{
-	"production": {
-		ControllerAddr: "jimm.jujucharms.com:443",
-		overrides:      envOverrides(productionBaseURL),
-	},
-	"staging": {
-		ControllerAddr: "jimm.staging.jujucharms.com:443",
-		overrides:      envOverrides("https://api.staging.jujucharms.com"),
-	},
-	"qa": {
-		ControllerAddr: "jimm.jujugui.org:443",
-		overrides:      envOverrides("https://www.jujugui.org"),
-	},
+// GetEnvironment returns the environment with the given name.
+func GetEnvironment(name string) (Environment, error) {
+	if name == "" {
+		return Environment{}, nil
+	}
+	for _, env := range Environments {
+		if env.Name == name {
+			return env, nil
+		}
+		for _, alias := range env.aliases {
+			if alias == name {
+				return env, nil
+			}
+		}
+	}
+	return Environment{}, fmt.Errorf("environment %q not found", name)
 }
 
-// env holds information about an environment in which the GUI can be run,
-// for example staging or production.
-type env struct {
+// Environments holds the list of environments the GUI can be run into.
+var Environments = []Environment{{
+	Name:           "production",
+	ControllerAddr: "jimm.jujucharms.com:443",
+	aliases:        []string{"prod"},
+	overrides:      envOverrides(productionBaseURL),
+}, {
+	Name:           "staging",
+	ControllerAddr: "jimm.staging.jujucharms.com:443",
+	aliases:        []string{"stage"},
+	overrides:      envOverrides("https://api.staging.jujucharms.com"),
+}, {
+	Name:           "qa",
+	ControllerAddr: "jimm.jujugui.org:443",
+	aliases:        []string{"brian", "bruce"},
+	overrides:      envOverrides("https://www.jujugui.org"),
+}}
+
+// Environment holds information about an environment in which the GUI can be
+// run, for example staging or production.
+type Environment struct {
+	// Name holds the name of this environment.
+	Name string
+
 	// ControllerAddr holds the controller address for this environment.
 	ControllerAddr string
 
+	aliases   []string
 	overrides map[string]interface{}
+}
+
+// String implements the Stringer interface for the environment.
+func (env Environment) String() string {
+	aliases := ""
+	if len(env.aliases) != 0 {
+		aliases = fmt.Sprintf(" (aliases: %s)", strings.Join(env.aliases, ", "))
+	}
+	return env.Name + aliases
 }
 
 // envOverrides appends URL paths to the base URL provided, resulting in a map
@@ -142,19 +170,6 @@ func envOverrides(url string) map[string]interface{} {
 		// In all main GUI scenarios we can assume gisf to be true.
 		"gisf": true,
 	}
-}
-
-// envPairs returns override pairs for the given environment name, which can be
-// empty.
-func envPairs(envName string) (map[string]interface{}, error) {
-	if envName == "" {
-		return nil, nil
-	}
-	env, found := Environments[envName]
-	if !found {
-		return nil, fmt.Errorf("invalid environment: %q", envName)
-	}
-	return env.overrides, nil
 }
 
 // BaseURL returns the base URL from which the GUI is served by the proxy.

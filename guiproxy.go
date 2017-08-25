@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -76,7 +75,7 @@ func parseOptions() (*config, error) {
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", `controller address (defaults to the address of the current controller), for instance:
 		-controller jimm.jujucharms.com:443`)
-	guiConfig := flag.String("config", "", `override or extend GUI options with a JSON configuration, for instance:
+	guiConfig := flag.String("config", "", `override or extend GUI options with a JSON string, with or without enclosing braces, for instance:
 		-config '{"gisf": true}'
 		-config '"gisf": true, "charmstoreURL": "https://1.2.3.4/cs"'
 		-config '"flags": {"exterminate": true}'`)
@@ -93,10 +92,11 @@ func parseOptions() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI address: %s", err)
 	}
-	if *envName == "brian" {
-		*envName = "qa"
+	env, err := guiconfig.GetEnvironment(*envName)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get the environment: %s", err)
 	}
-	overrides, err := guiconfig.ParseOverrides(*envName, *guiConfig)
+	overrides, err := guiconfig.ParseOverrides(env, *guiConfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
 	}
@@ -105,15 +105,14 @@ func parseOptions() (*config, error) {
 		return nil, fmt.Errorf("cannot parse base URL in config: %s", err)
 	}
 
-	// At this point we know that the provided environment name is valid.
-	if *controllerAddr == "" && *envName != "" {
-		*controllerAddr = guiconfig.Environments[*envName].ControllerAddr
+	if *controllerAddr == "" && env.ControllerAddr != "" {
+		*controllerAddr = env.ControllerAddr
 	}
 	return &config{
 		port:           *port,
 		guiURL:         guiURL,
 		controllerAddr: *controllerAddr,
-		envName:        *envName,
+		envName:        env.Name,
 		guiConfig:      overrides,
 		baseURL:        baseURL,
 		legacyJuju:     *legacyJuju,
@@ -150,10 +149,9 @@ func usage() {
 // envChoices pretty formats GUI environment choices.
 func envChoices() string {
 	texts := make([]string, 0, len(guiconfig.Environments))
-	for name := range guiconfig.Environments {
-		texts = append(texts, "		- "+name)
+	for _, env := range guiconfig.Environments {
+		texts = append(texts, fmt.Sprintf("		- %s", env))
 	}
-	sort.Strings(texts)
 	return strings.Join(texts, "\n")
 }
 

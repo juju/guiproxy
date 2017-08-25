@@ -83,7 +83,7 @@ func TestNew(t *testing.T) {
 
 var parseOverridesTests = []struct {
 	about             string
-	envName           string
+	env               guiconfig.Environment
 	jsonConfig        string
 	expectedOverrides map[string]interface{}
 	expectedError     error
@@ -93,8 +93,8 @@ var parseOverridesTests = []struct {
 	about:      "empty JSON config",
 	jsonConfig: "   ",
 }, {
-	about:   "env production",
-	envName: "production",
+	about: "env production",
+	env:   mustGetEnvironment("production"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
@@ -106,8 +106,8 @@ var parseOverridesTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about:   "env staging",
-	envName: "staging",
+	about: "env staging",
+	env:   mustGetEnvironment("staging"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
@@ -119,8 +119,8 @@ var parseOverridesTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about:   "env qa",
-	envName: "qa",
+	about: "env qa",
+	env:   mustGetEnvironment("qa"),
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
 		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
@@ -159,19 +159,19 @@ var parseOverridesTests = []struct {
 		"gisf":       true,
 	},
 }, {
-	about:      "no brackets: single bool",
+	about:      "no braces: single bool",
 	jsonConfig: `"gisf": true`,
 	expectedOverrides: map[string]interface{}{
 		"gisf": true,
 	},
 }, {
-	about:      "no brackets: single text",
+	about:      "no braces: single text",
 	jsonConfig: `"charmstoreURL": "https://1.2.3.4/cs/"`,
 	expectedOverrides: map[string]interface{}{
 		"charmstoreURL": "https://1.2.3.4/cs/",
 	},
 }, {
-	about:      "no brackets: multiple",
+	about:      "no braces: multiple",
 	jsonConfig: `"answer": 42, "socketTemplate": "/model-api", "gisf": false`,
 	expectedOverrides: map[string]interface{}{
 		"answer":         42,
@@ -179,7 +179,7 @@ var parseOverridesTests = []struct {
 		"gisf":           false,
 	},
 }, {
-	about:      "no brackets: trim spaces",
+	about:      "no braces: trim spaces",
 	jsonConfig: `  "apiAddress" : "1.2.3.4" , "gisf"  :  true `,
 	expectedOverrides: map[string]interface{}{
 		"apiAddress": "1.2.3.4",
@@ -187,7 +187,7 @@ var parseOverridesTests = []struct {
 	},
 }, {
 	about:      "overlap: env and json",
-	envName:    "production",
+	env:        mustGetEnvironment("production"),
 	jsonConfig: `"gisf": false`,
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
@@ -200,10 +200,6 @@ var parseOverridesTests = []struct {
 		"gisf":    false,
 		"baseUrl": "/",
 	},
-}, {}, {
-	about:         "failure: invalid environment",
-	envName:       "bad-wolf",
-	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
 	about:         "failure: invalid JSON config",
 	jsonConfig:    "bad, wolf",
@@ -213,8 +209,58 @@ var parseOverridesTests = []struct {
 func TestParseOverrides(t *testing.T) {
 	for _, test := range parseOverridesTests {
 		t.Run(test.about, func(t *testing.T) {
-			overrides, err := guiconfig.ParseOverrides(test.envName, test.jsonConfig)
+			overrides, err := guiconfig.ParseOverrides(test.env, test.jsonConfig)
 			assertMap(t, overrides, test.expectedOverrides)
+			it.AssertError(t, err, test.expectedError)
+		})
+	}
+}
+
+var getEnvironmentTests = []struct {
+	about                  string
+	name                   string
+	expectedName           string
+	expectedControllerAddr string
+	expectedError          error
+}{{
+	about: "empty name",
+}, {
+	about:                  "production environment",
+	name:                   "production",
+	expectedName:           "production",
+	expectedControllerAddr: "jimm.jujucharms.com:443",
+}, {
+	about:                  "staging environment",
+	name:                   "staging",
+	expectedName:           "staging",
+	expectedControllerAddr: "jimm.staging.jujucharms.com:443",
+}, {
+	about:                  "qa environment",
+	name:                   "qa",
+	expectedName:           "qa",
+	expectedControllerAddr: "jimm.jujugui.org:443",
+}, {
+	about:                  "production environment alias",
+	name:                   "prod",
+	expectedName:           "production",
+	expectedControllerAddr: "jimm.jujucharms.com:443",
+}, {
+	about:                  "qa environment alias",
+	name:                   "brian",
+	expectedName:           "qa",
+	expectedControllerAddr: "jimm.jujugui.org:443",
+}, {
+	about:         "failure: not found",
+	name:          "bad-wolf",
+	expectedError: errors.New(`environment "bad-wolf" not found`),
+}}
+
+func TestGetEnvironment(t *testing.T) {
+	for _, test := range getEnvironmentTests {
+		t.Run(test.about, func(t *testing.T) {
+			env, err := guiconfig.GetEnvironment(test.name)
+			it.AssertString(t, env.Name, test.expectedName)
+			it.AssertString(t, env.ControllerAddr, test.expectedControllerAddr)
 			it.AssertError(t, err, test.expectedError)
 		})
 	}
@@ -350,4 +396,14 @@ func rawMessage(t *testing.T, s string) *json.RawMessage {
 	}
 	msg := json.RawMessage(b)
 	return &msg
+}
+
+// mustGetEnvironment retrieves the GUI environment with the given name, or
+// panics if the environment cannot be found.
+func mustGetEnvironment(name string) guiconfig.Environment {
+	env, err := guiconfig.GetEnvironment(name)
+	if err != nil {
+		panic(err)
+	}
+	return env
 }
