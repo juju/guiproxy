@@ -76,16 +76,16 @@ func parseOptions() (*config, error) {
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", `controller address (defaults to the address of the current controller), for instance:
 		-controller jimm.jujucharms.com:443`)
-	guiConfig := flag.String("config", "", `override or extend fields in the GUI configuration, for instance:
-		-config gisf:true
-		-config 'gisf: true, charmstoreURL: "https://1.2.3.4/cs"'
-		-config 'flags: {"exterminate": true}'`)
-
+	guiConfig := flag.String("config", "", `override or extend GUI options with a JSON configuration, for instance:
+		-config '{"gisf": true}'
+		-config '"gisf": true, "charmstoreURL": "https://1.2.3.4/cs"'
+		-config '"flags": {"exterminate": true}'`)
 	envName := flag.String("env", "", "select a predefined environment to run against between the following:\n"+envChoices())
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
 	showVersion := flag.Bool("version", false, "show application version and exit")
 	flag.Parse()
+
 	if !strings.HasPrefix(*guiAddr, "http") {
 		*guiAddr = "http://" + *guiAddr
 	}
@@ -96,7 +96,7 @@ func parseOptions() (*config, error) {
 	if *envName == "brian" {
 		*envName = "qa"
 	}
-	overrides, err := guiconfig.ParseOverridesForEnv(*envName, *guiConfig)
+	overrides, err := guiconfig.ParseOverrides(*envName, *guiConfig)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse GUI config: %s", err)
 	}

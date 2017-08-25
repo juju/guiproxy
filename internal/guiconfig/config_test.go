@@ -81,17 +81,20 @@ func TestNew(t *testing.T) {
 	}
 }
 
-var parseOverridesForEnvTests = []struct {
+var parseOverridesTests = []struct {
 	about             string
-	input             string
-	env               string
+	envName           string
+	jsonConfig        string
 	expectedOverrides map[string]interface{}
 	expectedError     error
 }{{
 	about: "no overrides",
 }, {
-	about: "with production",
-	env:   "production",
+	about:      "empty JSON config",
+	jsonConfig: "   ",
+}, {
+	about:   "env production",
+	envName: "production",
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
@@ -103,8 +106,8 @@ var parseOverridesForEnvTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "with staging",
-	env:   "staging",
+	about:   "env staging",
+	envName: "staging",
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
@@ -116,8 +119,8 @@ var parseOverridesForEnvTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "with qa",
-	env:   "qa",
+	about:   "env qa",
+	envName: "qa",
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
 		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
@@ -129,54 +132,88 @@ var parseOverridesForEnvTests = []struct {
 		"baseUrl":          "/",
 	},
 }, {
-	about: "success: single bool",
-	input: "gisf: true",
+	about:      "single bool",
+	jsonConfig: `{"gisf": true}`,
 	expectedOverrides: map[string]interface{}{
 		"gisf": true,
 	},
 }, {
-	about: "success: single text",
-	input: `charmstoreURL: "https://1.2.3.4/cs/"`,
+	about:      "single text",
+	jsonConfig: `{"charmstoreURL": "https://1.2.3.4/cs/"}`,
 	expectedOverrides: map[string]interface{}{
 		"charmstoreURL": "https://1.2.3.4/cs/",
 	},
 }, {
-	about: "success: multiple",
-	input: `answer: 42, socketTemplate: "/model-api", gisf: false`,
+	about:      "multiple",
+	jsonConfig: `{"answer": 42, "socketTemplate": "/model-api", "gisf": false}`,
 	expectedOverrides: map[string]interface{}{
 		"answer":         42,
 		"socketTemplate": "/model-api",
 		"gisf":           false,
 	},
 }, {
-	about: "success: trim spaces",
-	input: ` apiAddress : "1.2.3.4" , gisf  :  true `,
+	about:      "trim spaces",
+	jsonConfig: `  {  "apiAddress" : "1.2.3.4" , "gisf"  :  true }`,
 	expectedOverrides: map[string]interface{}{
 		"apiAddress": "1.2.3.4",
 		"gisf":       true,
 	},
+}, {
+	about:      "no brackets: single bool",
+	jsonConfig: `"gisf": true`,
+	expectedOverrides: map[string]interface{}{
+		"gisf": true,
+	},
+}, {
+	about:      "no brackets: single text",
+	jsonConfig: `"charmstoreURL": "https://1.2.3.4/cs/"`,
+	expectedOverrides: map[string]interface{}{
+		"charmstoreURL": "https://1.2.3.4/cs/",
+	},
+}, {
+	about:      "no brackets: multiple",
+	jsonConfig: `"answer": 42, "socketTemplate": "/model-api", "gisf": false`,
+	expectedOverrides: map[string]interface{}{
+		"answer":         42,
+		"socketTemplate": "/model-api",
+		"gisf":           false,
+	},
+}, {
+	about:      "no brackets: trim spaces",
+	jsonConfig: `  "apiAddress" : "1.2.3.4" , "gisf"  :  true `,
+	expectedOverrides: map[string]interface{}{
+		"apiAddress": "1.2.3.4",
+		"gisf":       true,
+	},
+}, {
+	about:      "overlap: env and json",
+	envName:    "production",
+	jsonConfig: `"gisf": false`,
+	expectedOverrides: map[string]interface{}{
+		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
+		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
+		"identityURL":      "https://api.jujucharms.com/identity/",
+		"paymentURL":       "https://api.jujucharms.com/payment/",
+		"plansURL":         "https://api.jujucharms.com/plans/",
+		"termsURL":         "https://api.jujucharms.com/terms/",
+		// The environment configuration is overridden.
+		"gisf":    false,
+		"baseUrl": "/",
+	},
 }, {}, {
 	about:         "failure: invalid environment",
-	env:           "bad-wolf",
+	envName:       "bad-wolf",
 	expectedError: errors.New(`invalid environment: "bad-wolf"`),
 }, {
-	about:         "failure: invalid pairs",
-	input:         "bad, wolf",
-	expectedError: errors.New(`invalid key/value pair "bad"`),
-}, {
-	about:         "failure: empty overrides",
-	input:         "    ",
-	expectedError: errors.New(`invalid key/value pair ""`),
-}, {
-	about:         "failure: invalid JSON",
-	input:         "gisf: bad-wolf",
-	expectedError: errors.New("invalid value for key gisf: invalid character"),
+	about:         "failure: invalid JSON config",
+	jsonConfig:    "bad, wolf",
+	expectedError: errors.New(`invalid JSON config "{bad, wolf}"`),
 }}
 
-func TestParseOverridesForEnv(t *testing.T) {
-	for _, test := range parseOverridesForEnvTests {
+func TestParseOverrides(t *testing.T) {
+	for _, test := range parseOverridesTests {
 		t.Run(test.about, func(t *testing.T) {
-			overrides, err := guiconfig.ParseOverridesForEnv(test.env, test.input)
+			overrides, err := guiconfig.ParseOverrides(test.envName, test.jsonConfig)
 			assertMap(t, overrides, test.expectedOverrides)
 			it.AssertError(t, err, test.expectedError)
 		})

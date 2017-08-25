@@ -12,7 +12,6 @@ const (
 	productionBaseURL = "https://api.jujucharms.com"
 	prefix            = "var juju_config = "
 	suffix            = ";"
-	separator         = ","
 )
 
 // New generates and returns the Juju GUI configuration file as a string, based
@@ -66,38 +65,39 @@ type Context struct {
 	ModelTemplate string
 }
 
-// ParseOverridesForEnv generates overrides from the given string, populating
-// URLs for a given environment. Accepted strings are like the following:
-// `gisf: true; charmstoreURL: "https://1.2.3.4/cs"`.
-func ParseOverridesForEnv(envName, v string) (map[string]interface{}, error) {
+// ParseOverrides generates and returns overrides from the given environment
+// (for instance "production" or "staging") and the given JSON configuration
+// (provided with or without the enclosing brackets, like `{"gisf": true}` or
+// `"gisf": true; "charmstoreURL": "https://1.2.3.4/cs"`). If there is an
+// overlap between configuration keys, the JSON overrides the environment.
+func ParseOverrides(envName, jsonConfig string) (map[string]interface{}, error) {
+	// Parse environment pairs.
 	envPairs, err := envPairs(envName)
 	if err != nil {
 		return nil, err
 	}
-	pairs := strings.Split(v, separator)
-	overrides := make(map[string]interface{}, len(pairs)+len(envPairs))
+	// Parse JSON pairs.
+	var jsonPairs map[string]interface{}
+	jsonConfig = strings.TrimSpace(jsonConfig)
+	if jsonConfig != "" {
+		if !strings.HasPrefix(jsonConfig, "{") {
+			jsonConfig = "{" + jsonConfig + "}"
+		}
+		if err := json.Unmarshal([]byte(jsonConfig), &jsonPairs); err != nil {
+			return nil, fmt.Errorf("invalid JSON config %q: %v", jsonConfig, err)
+		}
+	}
+	// Populate the overrides.
+	numOverrides := len(envPairs) + len(jsonPairs)
+	if numOverrides == 0 {
+		return nil, nil
+	}
+	overrides := make(map[string]interface{}, numOverrides)
 	for k, v := range envPairs {
 		overrides[k] = v
 	}
-	if v == "" {
-		if len(overrides) == 0 {
-			return nil, nil
-		}
-		return overrides, nil
-	}
-	for _, pair := range pairs {
-		pair = strings.TrimSpace(pair)
-		keyVal := strings.SplitN(pair, ":", 2)
-		if len(keyVal) != 2 {
-			return nil, fmt.Errorf("invalid key/value pair %q", pair)
-		}
-		key := strings.TrimSpace(keyVal[0])
-		val := strings.TrimSpace(keyVal[1])
-		var value json.RawMessage
-		if err := json.Unmarshal([]byte(val), &value); err != nil {
-			return nil, fmt.Errorf("invalid value for key %s: %v", key, err)
-		}
-		overrides[key] = &value
+	for k, v := range jsonPairs {
+		overrides[k] = v
 	}
 	return overrides, nil
 }
