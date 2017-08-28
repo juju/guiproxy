@@ -17,6 +17,7 @@ var sliceTests = []struct {
 	about               string
 	name                string
 	value               string
+	defaultValue        []string
 	expectedValue       []string
 	expectedStringValue string
 	expectedError       error
@@ -39,6 +40,17 @@ var sliceTests = []struct {
 	expectedValue:       []string{"these", "are", "the", "voyages"},
 	expectedStringValue: "these,are,the,voyages",
 }, {
+	about:         "default value: with value",
+	name:          "def1",
+	value:         "exterminate",
+	defaultValue:  []string{"default", "not", "used"},
+	expectedValue: []string{"exterminate"},
+}, {
+	about:         "default value: without value",
+	name:          "def2",
+	defaultValue:  []string{"default", "used"},
+	expectedValue: []string{"default", "used"},
+}, {
 	about:         "error: empty string",
 	name:          "err",
 	expectedError: errors.New("cannot include empty strings in the list"),
@@ -52,10 +64,12 @@ var sliceTests = []struct {
 func TestSlice(t *testing.T) {
 	for _, test := range sliceTests {
 		runIsolated(t, test.about, func(t *testing.T) {
-			v := stringflag.Slice(test.name, nil, "slice usage")
-			err := flag.Set(test.name, test.value)
+			v := stringflag.Slice(test.name, test.defaultValue, "slice usage")
+			if test.value != "" || test.defaultValue == nil {
+				err := flag.Set(test.name, test.value)
+				it.AssertError(t, err, test.expectedError)
+			}
 			it.AssertStringSlice(t, *v, test.expectedValue)
-			it.AssertError(t, err, test.expectedError)
 		})
 	}
 }
@@ -64,10 +78,12 @@ func TestSliceVar(t *testing.T) {
 	for _, test := range sliceTests {
 		runIsolated(t, test.about, func(t *testing.T) {
 			var v stringflag.StringSlice
-			stringflag.SliceVar(&v, test.name, nil, "slice usage")
-			err := flag.Set(test.name, test.value)
+			stringflag.SliceVar(&v, test.name, test.defaultValue, "slice usage")
+			if test.value != "" || test.defaultValue == nil {
+				err := flag.Set(test.name, test.value)
+				it.AssertError(t, err, test.expectedError)
+			}
 			it.AssertStringSlice(t, v, test.expectedValue)
-			it.AssertError(t, err, test.expectedError)
 		})
 	}
 }
@@ -75,10 +91,13 @@ func TestSliceVar(t *testing.T) {
 func TestStringSliceSet(t *testing.T) {
 	for _, test := range sliceTests {
 		runIsolated(t, test.about, func(t *testing.T) {
+			if test.defaultValue != nil {
+				return
+			}
 			var v stringflag.StringSlice
 			err := v.Set(test.value)
-			it.AssertStringSlice(t, v, test.expectedValue)
 			it.AssertError(t, err, test.expectedError)
+			it.AssertStringSlice(t, v, test.expectedValue)
 		})
 	}
 }
@@ -86,6 +105,9 @@ func TestStringSliceSet(t *testing.T) {
 func TestStringSliceString(t *testing.T) {
 	for _, test := range sliceTests {
 		runIsolated(t, test.about, func(t *testing.T) {
+			if test.defaultValue != nil {
+				return
+			}
 			var v stringflag.StringSlice
 			v.Set(test.value)
 			it.AssertString(t, v.String(), test.expectedStringValue)
@@ -97,6 +119,7 @@ var mapTests = []struct {
 	about               string
 	name                string
 	value               string
+	defaultValue        map[string]interface{}
 	expectedValue       map[string]interface{}
 	expectedStringValue string
 	expectedError       error
@@ -181,6 +204,25 @@ var mapTests = []struct {
 	},
 	expectedStringValue: `{"gisf":true}`,
 }, {
+	about: "default value: with value",
+	name:  "single",
+	value: `{"gisf": true}`,
+	defaultValue: map[string]interface{}{
+		"answer": 42,
+	},
+	expectedValue: map[string]interface{}{
+		"gisf": true,
+	},
+}, {
+	about: "default value: without value",
+	name:  "single",
+	defaultValue: map[string]interface{}{
+		"answer": 42,
+	},
+	expectedValue: map[string]interface{}{
+		"answer": 42,
+	},
+}, {
 	about:               "empty string",
 	name:                "empty",
 	expectedValue:       map[string]interface{}{},
@@ -202,10 +244,12 @@ var mapTests = []struct {
 func TestMap(t *testing.T) {
 	for _, test := range mapTests {
 		runIsolated(t, test.about, func(t *testing.T) {
-			v := stringflag.Map(test.name, nil, "map usage")
-			err := flag.Set(test.name, test.value)
+			v := stringflag.Map(test.name, test.defaultValue, "map usage")
+			if test.value != "" || test.defaultValue == nil {
+				err := flag.Set(test.name, test.value)
+				it.AssertError(t, err, test.expectedError)
+			}
 			it.AssertMap(t, *v, test.expectedValue)
-			it.AssertError(t, err, test.expectedError)
 		})
 	}
 }
@@ -214,10 +258,12 @@ func TestMapVar(t *testing.T) {
 	for _, test := range mapTests {
 		runIsolated(t, test.about, func(t *testing.T) {
 			var v stringflag.StringMap
-			stringflag.MapVar(&v, test.name, nil, "map usage")
-			err := flag.Set(test.name, test.value)
+			stringflag.MapVar(&v, test.name, test.defaultValue, "map usage")
+			if test.value != "" || test.defaultValue == nil {
+				err := flag.Set(test.name, test.value)
+				it.AssertError(t, err, test.expectedError)
+			}
 			it.AssertMap(t, v, test.expectedValue)
-			it.AssertError(t, err, test.expectedError)
 		})
 	}
 }
@@ -225,6 +271,9 @@ func TestMapVar(t *testing.T) {
 func TestStringMapSet(t *testing.T) {
 	for _, test := range mapTests {
 		runIsolated(t, test.about, func(t *testing.T) {
+			if test.defaultValue != nil {
+				return
+			}
 			var v stringflag.StringMap
 			err := v.Set(test.value)
 			it.AssertMap(t, v, test.expectedValue)
@@ -236,6 +285,9 @@ func TestStringMapSet(t *testing.T) {
 func TestStringMapString(t *testing.T) {
 	for _, test := range mapTests {
 		runIsolated(t, test.about, func(t *testing.T) {
+			if test.defaultValue != nil {
+				return
+			}
 			var v stringflag.StringMap
 			v.Set(test.value)
 			it.AssertString(t, v.String(), test.expectedStringValue)
