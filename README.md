@@ -1,3 +1,5 @@
+[![GoDoc](https://godoc.org/github.com/juju/guiproxy?status.svg)](https://godoc.org/github.com/juju/guiproxy)
+
 # GUIProxy: a Juju GUI development tool
 
 The GUIProxy server proxies WebSocket requests from a Juju GUI sandbox instance
