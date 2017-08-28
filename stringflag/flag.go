@@ -10,7 +10,7 @@ import (
 // Slice defines a string slice flag with specified name, default value, and
 // usage string. The return value is the address of a StringSlice variable that
 // stores the value of the flag.
-func Slice(name string, value StringSlice, usage string) *StringSlice {
+func Slice(name string, value []string, usage string) *StringSlice {
 	var s StringSlice
 	SliceVar(&s, name, value, usage)
 	return &s
@@ -19,7 +19,8 @@ func Slice(name string, value StringSlice, usage string) *StringSlice {
 // SliceVar defines a string slice flag with specified name, default value, and
 // usage string. The argument p points to a StringSlice variable in which to
 // store the value of the flag.
-func SliceVar(p *StringSlice, name string, value StringSlice, usage string) {
+func SliceVar(p *StringSlice, name string, value []string, usage string) {
+	*p = value
 	flag.Var(p, name, usage)
 }
 
@@ -35,6 +36,7 @@ func (s *StringSlice) String() string {
 // Set implements flag.Value by populating the slice from the given comma
 // separated value.
 func (s *StringSlice) Set(value string) error {
+	*s = nil
 	for _, v := range strings.Split(value, ",") {
 		v = strings.TrimSpace(v)
 		if v == "" {
@@ -48,7 +50,7 @@ func (s *StringSlice) Set(value string) error {
 // Map defines a flag containing a map of strings with specified name, default
 // value, and usage string. The return value is the address of a StringMap
 // variable that stores the value of the flag.
-func Map(name string, value StringMap, usage string) *StringMap {
+func Map(name string, value map[string]interface{}, usage string) *StringMap {
 	var s StringMap
 	MapVar(&s, name, value, usage)
 	return &s
@@ -57,7 +59,8 @@ func Map(name string, value StringMap, usage string) *StringMap {
 // MapVar defines a flag containing a map of strings with specified name,
 // default value, and usage string. The argument p points to a StringMap
 // variable in which to store the value of the flag.
-func MapVar(p *StringMap, name string, value StringMap, usage string) {
+func MapVar(p *StringMap, name string, value map[string]interface{}, usage string) {
+	*p = value
 	flag.Var(p, name, usage)
 }
 
@@ -78,6 +81,7 @@ func (s *StringMap) String() string {
 // Set implements flag.Value by unmarshaling the JSON encoded value into the
 // string map. The JSON enclosing braces can be omitted.
 func (s *StringMap) Set(value string) error {
+	*s = nil
 	value = strings.TrimSpace(value)
 	if !strings.HasPrefix(value, "{") {
 		value = "{" + value + "}"
