@@ -11,11 +11,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frankban/flagutils"
+
 	"github.com/juju/guiproxy/internal/guiconfig"
 	"github.com/juju/guiproxy/internal/juju"
 	"github.com/juju/guiproxy/internal/network"
 	"github.com/juju/guiproxy/server"
-	"github.com/juju/guiproxy/stringflag"
 )
 
 // version holds the guiproxy program version.
@@ -76,12 +77,12 @@ func parseOptions() (*config, error) {
 	guiAddr := flag.String("gui", defaultGUIAddr, "address on which the GUI in sandbox mode is listening")
 	controllerAddr := flag.String("controller", "", `controller address (defaults to the address of the current controller), for instance:
 		-controller jimm.jujucharms.com:443`)
-	guiConfig := stringflag.Map("config", nil, `override or extend GUI options with a JSON key/value string, with or without enclosing braces, for instance:
+	guiConfig := flagutils.Map("config", nil, `override or extend GUI options with a JSON key/value string, with or without enclosing braces, for instance:
 		-config '{"gisf": true}'
 		-config '"gisf": true, "charmstoreURL": "https://1.2.3.4/cs"'
 		-config '"flags": {"exterminate": true}'`)
 	envName := flag.String("env", "", "select a predefined environment to run against between the following:\n"+envChoices())
-	flags := stringflag.Slice("flags", nil, `a comma separated list of GUI feature flags to activate, for instance:
+	flags := flagutils.Slice("flags", nil, `a comma separated list of GUI feature flags to activate, for instance:
 		- flags profile,status`)
 	legacyJuju := flag.Bool("juju1", false, "connect to a Juju 1 model")
 	noColor := flag.Bool("nocolor", false, "do not use colors")
