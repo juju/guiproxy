@@ -5,8 +5,9 @@ import (
 	"net"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
+
 	"github.com/juju/guiproxy/internal/network"
-	it "github.com/juju/guiproxy/internal/testing"
 )
 
 var addressesTests = []struct {
@@ -36,11 +37,17 @@ var addressesTests = []struct {
 func TestAddresses(t *testing.T) {
 	for _, test := range addressesTests {
 		t.Run(test.about, func(t *testing.T) {
+			c := qt.New(t)
 			restore := patchAddresses(test.addrs, test.err)
 			defer restore()
 			addrs, err := network.Addresses()
-			it.AssertError(t, err, test.err)
-			it.AssertStringSlice(t, addrs, test.expectedAddrs)
+			if test.err != nil {
+				c.Assert(err.Error(), qt.Equals, test.err.Error())
+				c.Assert(addrs, qt.IsNil)
+				return
+			}
+			c.Assert(err, qt.Equals, nil)
+			c.Assert(addrs, qt.DeepEquals, test.expectedAddrs)
 		})
 	}
 }

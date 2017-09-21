@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
+
 	"github.com/juju/guiproxy/httpproxy"
 	it "github.com/juju/guiproxy/internal/testing"
 	"github.com/juju/guiproxy/logger"
@@ -20,6 +22,7 @@ func TestNewTLSReverseProxy(t *testing.T) {
 
 func testTLSReverseProxy(path string, log logger.Interface) func(t *testing.T) {
 	return func(t *testing.T) {
+		c := qt.New(t)
 		// Set up a target HTTP server.
 		target := httptest.NewTLSServer(targetHndler)
 		defer target.Close()
@@ -31,18 +34,18 @@ func testTLSReverseProxy(path string, log logger.Interface) func(t *testing.T) {
 
 		// Send a request to the proxy.
 		resp, err := http.Get(proxy.URL + path)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer resp.Body.Close()
 
 		// The response is correct.
 		b, err := ioutil.ReadAll(resp.Body)
-		it.AssertError(t, err, nil)
-		it.AssertString(t, string(b), "target: "+path)
+		c.Assert(err, qt.Equals, nil)
+		c.Assert(string(b), qt.Equals, "target: "+path)
 
 		// Logs are printed.
 		if log, ok := log.(*logCollector); ok {
-			it.AssertInt(t, len(log.messages), 1)
-			it.AssertString(t, log.messages[0], fmt.Sprintf("GET %s/my/path: 200 OK", target.URL))
+			c.Assert(len(log.messages), qt.Equals, 1)
+			c.Assert(log.messages[0], qt.Equals, fmt.Sprintf("GET %s/my/path: 200 OK", target.URL))
 		}
 	}
 }
@@ -105,6 +108,7 @@ func TestNewRedirectHandler(t *testing.T) {
 
 func testRedirectHandler(path, expectedPath, to string, log logger.Interface) func(t *testing.T) {
 	return func(t *testing.T) {
+		c := qt.New(t)
 		// Set up a target HTTP server.
 		target := httptest.NewServer(targetHndler)
 		defer target.Close()
@@ -116,18 +120,18 @@ func testRedirectHandler(path, expectedPath, to string, log logger.Interface) fu
 
 		// Send a request to the handler.
 		resp, err := http.Get(handler.URL + path)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer resp.Body.Close()
 
 		// The response is correct.
 		b, err := ioutil.ReadAll(resp.Body)
-		it.AssertError(t, err, nil)
-		it.AssertString(t, string(b), "target: "+expectedPath)
+		c.Assert(err, qt.Equals, nil)
+		c.Assert(string(b), qt.Equals, "target: "+expectedPath)
 
 		// Logs are printed.
 		if log, ok := log.(*logCollector); ok {
-			it.AssertInt(t, len(log.messages), 1)
-			it.AssertString(t, log.messages[0], fmt.Sprintf("GET %s%s: 200 OK", target.URL, expectedPath))
+			c.Assert(len(log.messages), qt.Equals, 1)
+			c.Assert(log.messages[0], qt.Equals, fmt.Sprintf("GET %s%s: 200 OK", target.URL, expectedPath))
 		}
 	}
 }

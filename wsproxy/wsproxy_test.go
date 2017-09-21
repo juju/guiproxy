@@ -2,20 +2,20 @@ package wsproxy_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/websocket"
 
-	it "github.com/juju/guiproxy/internal/testing"
 	"github.com/juju/guiproxy/wsproxy"
 )
 
 func TestCopy(t *testing.T) {
+	c := qt.New(t)
 	// Set up a target WebSocket server.
 	ping := httptest.NewServer(http.HandlerFunc(pingHandler))
 	defer ping.Close()
@@ -27,7 +27,7 @@ func TestCopy(t *testing.T) {
 
 	// Connect to the proxy.
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL(proxy.URL), nil)
-	it.AssertError(t, err, nil)
+	c.Assert(err, qt.Equals, nil)
 
 	// Send messages and check that ping responses are properly received.
 	send := func(content string) string {
@@ -35,13 +35,13 @@ func TestCopy(t *testing.T) {
 			Content: content,
 		}
 		err = conn.WriteJSON(msg)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		err = conn.ReadJSON(&msg)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		return msg.Content
 	}
-	it.AssertString(t, send("ping"), "ping pong")
-	it.AssertString(t, send("bad wolf"), "bad wolf pong")
+	c.Assert(send("ping"), qt.Equals, "ping pong")
+	c.Assert(send("bad wolf"), qt.Equals, "bad wolf pong")
 
 	// Incoming and outgoing WebSocket traffic has been logged.
 	assertLogs := func(ls *logStorage, expected ...string) {
@@ -50,16 +50,10 @@ func TestCopy(t *testing.T) {
 			b, err := json.Marshal(jsonMessage{
 				Content: content,
 			})
-			it.AssertError(t, err, nil)
+			c.Assert(err, qt.Equals, nil)
 			messages[i] = string(b)
 		}
-		errMessage := fmt.Sprintf("\n%v !=\n%v", ls.messages, messages)
-		if len(ls.messages) != len(messages) {
-			t.Fatal(errMessage)
-		}
-		for i, msg := range ls.messages {
-			it.AssertString(t, msg, messages[i])
-		}
+		c.Assert(messages, qt.DeepEquals, ls.messages)
 	}
 	assertLogs(conn1Log, "ping", "bad wolf")
 	assertLogs(conn2Log, "ping pong", "bad wolf pong")

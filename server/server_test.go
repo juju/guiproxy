@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/websocket"
 
 	it "github.com/juju/guiproxy/internal/testing"
@@ -18,6 +19,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	c := qt.New(t)
 	// Set up test servers.
 	gui := httptest.NewServer(newGUIServer())
 	defer gui.Close()
@@ -68,15 +70,15 @@ func TestNew(t *testing.T) {
 	modelPath2 := fmt.Sprintf("/model/?model=%s&uuid=another-uuid", jujuURL.Host)
 	legacyModelPath := fmt.Sprintf("/model/?model=%s", legacyJujuURL.Host)
 
-	t.Run("testJujuWebSocket Controller", testJujuWebSocket(serverURL, "/api", controllerPath))
-	t.Run("testJujuWebSocket Model1", testJujuWebSocket(serverURL, "/model/uuid/api", modelPath1))
-	t.Run("testJujuWebSocket Model2", testJujuWebSocket(serverURL, "/model/another-uuid/api", modelPath2))
-	t.Run("testJujuWebSocket Legacy", testJujuWebSocket(legacyServerURL, "/", legacyModelPath))
+	c.Run("testJujuWebSocket Controller", testJujuWebSocket(serverURL, "/api", controllerPath))
+	c.Run("testJujuWebSocket Model1", testJujuWebSocket(serverURL, "/model/uuid/api", modelPath1))
+	c.Run("testJujuWebSocket Model2", testJujuWebSocket(serverURL, "/model/another-uuid/api", modelPath2))
+	c.Run("testJujuWebSocket Legacy", testJujuWebSocket(legacyServerURL, "/", legacyModelPath))
 
-	t.Run("testJujuHTTPS", testJujuHTTPS(serverURL))
-	t.Run("testJujuHTTPS Legacy", testJujuHTTPS(legacyServerURL))
+	c.Run("testJujuHTTPS", testJujuHTTPS(serverURL))
+	c.Run("testJujuHTTPS Legacy", testJujuHTTPS(legacyServerURL))
 
-	t.Run("testGUIConfig", testGUIConfig(
+	c.Run("testGUIConfig", testGUIConfig(
 		serverURL,
 		fmt.Sprintf(`"controllerSocketTemplate": %s`, jsonMarshalString(server.ControllerSrcTemplate)),
 		fmt.Sprintf(`"socketTemplate": %s`, jsonMarshalString(server.ModelSrcTemplate)),
@@ -85,7 +87,7 @@ func TestNew(t *testing.T) {
 		`"jujuEnvUUID": ""`,
 		`"gisf": false`,
 	))
-	t.Run("testGUIConfig Legacy", testGUIConfig(
+	c.Run("testGUIConfig Legacy", testGUIConfig(
 		legacyServerURL,
 		`"controllerSocketTemplate": ""`,
 		fmt.Sprintf(`"socketTemplate": %s`, jsonMarshalString(server.LegacyModelSrcTemplate)),
@@ -93,7 +95,7 @@ func TestNew(t *testing.T) {
 		fmt.Sprintf(`"jujuCoreVersion": "%s"`, server.LegacyJujuVersion),
 		`"jujuEnvUUID": ""`,
 	))
-	t.Run("testGUIConfig Customized", testGUIConfig(
+	c.Run("testGUIConfig Customized", testGUIConfig(
 		customConfigServerURL,
 		fmt.Sprintf(`"controllerSocketTemplate": %s`, jsonMarshalString(server.ControllerSrcTemplate)),
 		fmt.Sprintf(`"socketTemplate": %s`, jsonMarshalString(server.ModelSrcTemplate)),
@@ -106,95 +108,89 @@ func TestNew(t *testing.T) {
 		`"jujuEnvUUID": ""`,
 	))
 
-	t.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
-	t.Run("testGUIStaticFiles Legacy", testGUIStaticFiles(legacyServerURL))
+	c.Run("testGUIStaticFiles", testGUIStaticFiles(serverURL))
+	c.Run("testGUIStaticFiles Legacy", testGUIStaticFiles(legacyServerURL))
 
-	t.Run("testGUIRedirect", testGUIRedirect(serverURL, "/base/"))
-	t.Run("testGUIRedirect Legacy", testGUIRedirect(legacyServerURL, "/base-legacy/"))
-	t.Run("testGUIRedirect Customized", testGUIRedirect(customConfigServerURL, "/"))
+	c.Run("testGUIRedirect", testGUIRedirect(serverURL, "/base/"))
+	c.Run("testGUIRedirect Legacy", testGUIRedirect(legacyServerURL, "/base-legacy/"))
+	c.Run("testGUIRedirect Customized", testGUIRedirect(customConfigServerURL, "/"))
 }
 
-func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(t *testing.T) {
+func testJujuWebSocket(serverURL *url.URL, dstPath, srcPath string) func(c *qt.C) {
 	u := *serverURL
 	u.Scheme = "ws"
 	socketURL := u.String() + srcPath
-	return func(t *testing.T) {
+	return func(c *qt.C) {
 		// Connect to the remote WebSocket.
 		conn, _, err := websocket.DefaultDialer.Dial(socketURL, nil)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer conn.Close()
 		// Send a message.
 		msg := jsonMessage{
 			Request: "my api request",
 		}
 		err = conn.WriteJSON(msg)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		// Retrieve the response from the WebSocket server.
 		err = conn.ReadJSON(&msg)
-		it.AssertError(t, err, nil)
-		it.AssertString(t, msg.Request, "my api request")
-		it.AssertString(t, msg.Response, dstPath)
+		c.Assert(err, qt.Equals, nil)
+		c.Assert(msg.Request, qt.Equals, "my api request")
+		c.Assert(msg.Response, qt.Equals, dstPath)
 	}
 }
 
-func testJujuHTTPS(serverURL *url.URL) func(t *testing.T) {
-	return func(t *testing.T) {
+func testJujuHTTPS(serverURL *url.URL) func(c *qt.C) {
+	return func(c *qt.C) {
 		// Make the HTTP request to retrieve a Juju HTTPS API endpoint.
 		resp, err := http.Get(serverURL.String() + "/juju-core/api/path")
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("invalid response code from Juju endpoint: %v", resp.StatusCode)
-		}
+		c.Assert(resp.StatusCode, qt.Equals, http.StatusOK)
 		// The response body includes the expected content.
 		b, err := ioutil.ReadAll(resp.Body)
-		it.AssertError(t, err, nil)
-		it.AssertString(t, string(b), "juju: /api/path")
+		c.Assert(err, qt.Equals, nil)
+		c.Assert(string(b), qt.Equals, "juju: /api/path")
 	}
 }
 
-func testGUIConfig(serverURL *url.URL, fragments ...string) func(t *testing.T) {
-	return func(t *testing.T) {
+func testGUIConfig(serverURL *url.URL, fragments ...string) func(c *qt.C) {
+	return func(c *qt.C) {
 		// Make the HTTP request to retrieve the GUI configuration file.
 		resp, err := http.Get(serverURL.String() + "/config.js")
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("invalid response code from config.js: %v", resp.StatusCode)
-		}
+		c.Assert(resp.StatusCode, qt.Equals, http.StatusOK)
 		// The response body includes all the provided fragments.
 		b, err := ioutil.ReadAll(resp.Body)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		cfg := string(b)
 		for _, fragment := range fragments {
 			if !strings.Contains(cfg, fragment) {
-				t.Fatalf("invalid GUI config: %q not included in %q", fragment, cfg)
+				c.Fatalf("invalid GUI config: %q not included in %q", fragment, cfg)
 			}
 		}
 	}
 }
 
-func testGUIStaticFiles(serverURL *url.URL) func(t *testing.T) {
-	return func(t *testing.T) {
+func testGUIStaticFiles(serverURL *url.URL) func(c *qt.C) {
+	return func(c *qt.C) {
 		// Make the HTTP request to retrieve a GUI static file.
 		resp, err := http.Get(serverURL.String() + "/my/path")
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("invalid response code from GUI static file: %v", resp.StatusCode)
-		}
+		c.Assert(resp.StatusCode, qt.Equals, http.StatusOK)
 		// The response body includes the expected content.
 		b, err := ioutil.ReadAll(resp.Body)
-		it.AssertError(t, err, nil)
-		it.AssertString(t, string(b), "gui: /my/path")
+		c.Assert(err, qt.Equals, nil)
+		c.Assert(string(b), qt.Equals, "gui: /my/path")
 	}
 }
 
-func testGUIRedirect(serverURL *url.URL, baseURL string) func(t *testing.T) {
-	return func(t *testing.T) {
+func testGUIRedirect(serverURL *url.URL, baseURL string) func(c *qt.C) {
+	return func(c *qt.C) {
 		// Make the HTTP request to retrieve the GUI root path.
 		client := &http.Client{
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -202,26 +198,20 @@ func testGUIRedirect(serverURL *url.URL, baseURL string) func(t *testing.T) {
 			},
 		}
 		resp, err := client.Get(serverURL.String() + "/")
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		defer resp.Body.Close()
 		// The request succeeded.
 		if baseURL == "/" {
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("invalid response code from GUI redirect from %q: obtained %v, expected %v", baseURL, resp.StatusCode, http.StatusMovedPermanently)
-			}
+			c.Assert(resp.StatusCode, qt.Equals, http.StatusOK)
 			return
 		}
-		if resp.StatusCode != http.StatusMovedPermanently {
-			t.Fatalf("invalid response code from GUI redirect from %q: obtained %v, expected %v", baseURL, resp.StatusCode, http.StatusMovedPermanently)
-		}
+		c.Assert(resp.StatusCode, qt.Equals, http.StatusMovedPermanently)
 		// The response body includes the expected location.
 		b, err := ioutil.ReadAll(resp.Body)
-		it.AssertError(t, err, nil)
+		c.Assert(err, qt.Equals, nil)
 		content := string(b)
-		fragment := fmt.Sprintf(`<a href="%s">Moved Permanently</a>`, baseURL)
-		if !strings.Contains(content, fragment) {
-			t.Fatalf("invalid redirect location: %q not included in %q", fragment, content)
-		}
+		fragment := fmt.Sprintf("<a href=\"%s\">Moved Permanently</a>", baseURL)
+		c.Assert(strings.Contains(content, fragment), qt.Equals, true, "content:", content)
 	}
 }
 
