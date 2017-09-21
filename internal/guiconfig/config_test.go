@@ -2,13 +2,14 @@ package guiconfig_test
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/juju/guiproxy/internal/guiconfig"
-	it "github.com/juju/guiproxy/internal/testing"
 )
 
 var newTests = []struct {
@@ -241,8 +242,9 @@ var overridesTests = []struct {
 func TestOverrides(t *testing.T) {
 	for _, test := range overridesTests {
 		t.Run(test.about, func(t *testing.T) {
+			c := qt.New(t)
 			overrides := guiconfig.Overrides(test.env, test.flags, test.config)
-			it.AssertMap(t, overrides, test.expectedOverrides)
+			c.Assert(overrides, qt.DeepEquals, test.expectedOverrides)
 		})
 	}
 }
@@ -252,7 +254,7 @@ var getEnvironmentTests = []struct {
 	name                   string
 	expectedName           string
 	expectedControllerAddr string
-	expectedError          error
+	expectedError          string
 }{{
 	about: "empty name",
 }, {
@@ -283,16 +285,22 @@ var getEnvironmentTests = []struct {
 }, {
 	about:         "failure: not found",
 	name:          "bad-wolf",
-	expectedError: errors.New(`environment "bad-wolf" not found`),
+	expectedError: `environment "bad-wolf" not found`,
 }}
 
 func TestGetEnvironment(t *testing.T) {
 	for _, test := range getEnvironmentTests {
 		t.Run(test.about, func(t *testing.T) {
+			c := qt.New(t)
 			env, err := guiconfig.GetEnvironment(test.name)
-			it.AssertString(t, env.Name, test.expectedName)
-			it.AssertString(t, env.ControllerAddr, test.expectedControllerAddr)
-			it.AssertError(t, err, test.expectedError)
+			if test.expectedError != "" {
+				c.Assert(err, qt.ErrorMatches, test.expectedError)
+				c.Assert(env, qt.CmpEquals(cmpopts.IgnoreUnexported(guiconfig.Environment{})), guiconfig.Environment{})
+				return
+			}
+			c.Assert(err, qt.Equals, nil)
+			c.Assert(env.Name, qt.Equals, test.expectedName)
+			c.Assert(env.ControllerAddr, qt.Equals, test.expectedControllerAddr)
 		})
 	}
 }
@@ -304,7 +312,7 @@ func TestBaseURL(t *testing.T) {
 		about         string
 		overrides     map[string]interface{}
 		expectedURL   string
-		expectedError error
+		expectedError string
 	}{{
 		about:       "no overrides",
 		expectedURL: guiconfig.DefaultBaseURL,
@@ -355,55 +363,56 @@ func TestBaseURL(t *testing.T) {
 		overrides: map[string]interface{}{
 			"baseUrl": "",
 		},
-		expectedError: errors.New(`invalid base URL "": must be a path starting with "/"`),
+		expectedError: `invalid base URL "": must be a path starting with "/"`,
 	}, {
 		about: "failure: invalid string",
 		overrides: map[string]interface{}{
 			"baseUrl": "bad wolf",
 		},
-		expectedError: errors.New(`invalid base URL "bad wolf": must be a path starting with "/"`),
+		expectedError: `invalid base URL "bad wolf": must be a path starting with "/"`,
 	}, {
 		about: "failure: empty raw message",
 		overrides: map[string]interface{}{
 			"baseUrl": rawMessage(t, ""),
 		},
-		expectedError: errors.New(`invalid base URL "": must be a path starting with "/"`),
+		expectedError: `invalid base URL "": must be a path starting with "/"`,
 	}, {
 		about: "failure: invalid raw message",
 		overrides: map[string]interface{}{
 			"baseUrl": rawMessage(t, "bad wolf"),
 		},
-		expectedError: errors.New(`invalid base URL "bad wolf": must be a path starting with "/"`),
+		expectedError: `invalid base URL "bad wolf": must be a path starting with "/"`,
 	}, {
 		about: "failure: raw message not a JSON",
 		overrides: map[string]interface{}{
 			"baseUrl": &invalidRawMessage,
 		},
-		expectedError: errors.New(`cannot unmarshal base URL "bad wolf"`),
+		expectedError: `cannot unmarshal base URL "bad wolf": .*`,
 	}, {
 		about: "failure: invalid type",
 		overrides: map[string]interface{}{
 			"baseUrl": 42,
 		},
-		expectedError: errors.New("invalid base URL: unexpected type int"),
+		expectedError: "invalid base URL: unexpected type int",
 	}, {
 		about: "failure: nil",
 		overrides: map[string]interface{}{
 			"baseUrl": nil,
 		},
-		expectedError: errors.New("invalid base URL: unexpected type <nil>"),
+		expectedError: "invalid base URL: unexpected type <nil>",
 	}}
 
 	for _, test := range tests {
 		t.Run(test.about, func(t *testing.T) {
+			c := qt.New(t)
 			baseURL, err := guiconfig.BaseURL(test.overrides)
-			if test.expectedError != nil {
-				it.AssertError(t, err, test.expectedError)
-				it.AssertString(t, baseURL, "")
+			if test.expectedError != "" {
+				c.Assert(err, qt.ErrorMatches, test.expectedError)
+				c.Assert(baseURL, qt.Equals, "")
 				return
 			}
-			it.AssertError(t, err, nil)
-			it.AssertString(t, baseURL, test.expectedURL)
+			c.Assert(err, qt.Equals, nil)
+			c.Assert(baseURL, qt.Equals, test.expectedURL)
 		})
 	}
 }

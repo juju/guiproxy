@@ -5,37 +5,42 @@ import (
 	"strings"
 	"testing"
 
-	it "github.com/juju/guiproxy/internal/testing"
+	qt "github.com/frankban/quicktest"
+
 	"github.com/juju/guiproxy/logger"
 )
 
 func TestPrint(t *testing.T) {
+	c := qt.New(t)
 	restore, getOutput := patchLogPrintln()
 	defer restore()
 	l := logger.New()
 	l.Print("these are the voyages")
-	it.AssertString(t, getOutput(), "these are the voyages\n")
+	c.Assert(getOutput(), qt.Equals, "these are the voyages\n")
 }
 
 func TestModifiers(t *testing.T) {
+	c := qt.New(t)
 	restore, getOutput := patchLogPrintln()
 	defer restore()
 	l := logger.New(logger.AddPrefix("my prefix"), strings.ToUpper)
 	l.Print("of the starship enterprise")
-	it.AssertString(t, getOutput(), "MY PREFIX: OF THE STARSHIP ENTERPRISE\n")
+	c.Assert(getOutput(), qt.Equals, "MY PREFIX: OF THE STARSHIP ENTERPRISE\n")
 }
 
 func TestNilModifiers(t *testing.T) {
+	c := qt.New(t)
 	restore, getOutput := patchLogPrintln()
 	defer restore()
 	l := logger.New(nil, nil)
 	l.Print("exterminate")
-	it.AssertString(t, getOutput(), "exterminate\n")
+	c.Assert(getOutput(), qt.Equals, "exterminate\n")
 }
 
 func TestAddPrefix(t *testing.T) {
+	c := qt.New(t)
 	f := logger.AddPrefix(">>> answer")
-	it.AssertString(t, f("42"), ">>> answer: 42")
+	c.Assert(f("42"), qt.Equals, ">>> answer: 42")
 }
 
 // patchLogPrintln patches the logger.LogPrintln variable so that it is

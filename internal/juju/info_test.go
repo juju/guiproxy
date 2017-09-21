@@ -5,8 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	qt "github.com/frankban/quicktest"
 
 	"github.com/juju/guiproxy/internal/juju"
 	it "github.com/juju/guiproxy/internal/testing"
@@ -24,27 +25,27 @@ func TestInfo(t *testing.T) {
 		commandErr             error
 		controllerAddr         string
 		expectedControllerAddr string
-		expectedError          error
+		expectedError          string
 	}{{
 		about:         "command error",
 		commandErr:    errors.New("bad wolf"),
-		expectedError: errors.New("cannot retrieve controller info: bad wolf"),
+		expectedError: "cannot retrieve controller info: bad wolf",
 	}, {
 		about:         "invalid command output",
 		commandOut:    "invalid",
-		expectedError: errors.New(`invalid controller info returned by juju: "invalid"`),
+		expectedError: `invalid controller info returned by juju: "invalid"`,
 	}, {
 		about:         "empty command output",
 		commandOut:    "{}",
-		expectedError: errors.New(`invalid controller info returned by juju: "{}"`),
+		expectedError: `invalid controller info returned by juju: "{}"`,
 	}, {
 		about:         "no addresses",
 		commandOut:    makeControllerInfo(nil),
-		expectedError: errors.New("no addresses found in controller info:"),
+		expectedError: "no addresses found in controller info: .*",
 	}, {
 		about:         "invalid addresses",
 		commandOut:    makeControllerInfo([]string{":::"}),
-		expectedError: errors.New("cannot connect to the Juju controller: dial tcp:"),
+		expectedError: "cannot connect to the Juju controller: dial tcp: .*",
 	}, {
 		about:                  "success from juju",
 		commandOut:             makeControllerInfo([]string{serverURL.Host}),
@@ -60,7 +61,7 @@ func TestInfo(t *testing.T) {
 	}, {
 		about:          "invalid address from input",
 		controllerAddr: ":::",
-		expectedError:  errors.New("cannot connect to the Juju controller: dial tcp:"),
+		expectedError:  "cannot connect to the Juju controller: dial tcp: .*",
 	}, {
 		about:                  "success from input",
 		controllerAddr:         serverURL.Host,
@@ -70,11 +71,17 @@ func TestInfo(t *testing.T) {
 	// Run the tests.
 	for _, test := range tests {
 		t.Run(test.about, func(t *testing.T) {
-			restore := patchCommand(t, []byte(test.commandOut), test.commandErr)
+			c := qt.New(t)
+			restore := patchCommand(c, []byte(test.commandOut), test.commandErr)
 			defer restore()
 			controllerAddr, err := juju.Info(test.controllerAddr)
-			it.AssertError(t, err, test.expectedError)
-			it.AssertString(t, controllerAddr, test.expectedControllerAddr)
+			if test.expectedError != "" {
+				c.Assert(err, qt.ErrorMatches, test.expectedError)
+				c.Assert(controllerAddr, qt.Equals, "")
+				return
+			}
+			c.Assert(err, qt.Equals, nil)
+			c.Assert(controllerAddr, qt.Equals, test.expectedControllerAddr)
 		})
 	}
 
@@ -90,11 +97,11 @@ func newJujuServer() http.Handler {
 
 // patchCommand patches the juju.ExecCommand variable so that it is possible
 // to simulate different output and error scenarios.
-func patchCommand(t *testing.T, out []byte, err error) (restore func()) {
+func patchCommand(c *qt.C, out []byte, err error) (restore func()) {
 	original := *juju.ExecCommand
 	*juju.ExecCommand = func(name string, args ...string) ([]byte, error) {
-		it.AssertString(t, name, "juju")
-		it.AssertString(t, strings.Join(args, " "), "show-controller --format json")
+		c.Assert(name, qt.Equals, "juju")
+		c.Assert(args, qt.DeepEquals, []string{"show-controller", "--format", "json"})
 		return out, err
 	}
 	return func() {
