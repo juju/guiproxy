@@ -6,6 +6,9 @@ $(GOPATH)/bin/godeps:
 deps: $(GOPATH)/bin/godeps
 	$(GOPATH)/bin/godeps -u dependencies.tsv
 
+create-deps: $(GOPATH)/bin/godeps
+	$(GOPATH)/bin/godeps -t ./... > dependencies.tsv
+
 build: deps
 	go build -v ./...
 
