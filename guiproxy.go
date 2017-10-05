@@ -20,7 +20,7 @@ import (
 )
 
 // version holds the guiproxy program version.
-const version = "0.7.2"
+const version = "0.7.3"
 
 var program = filepath.Base(os.Args[0])
 
