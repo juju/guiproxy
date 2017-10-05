@@ -165,7 +165,7 @@ func envOverrides(url string) map[string]interface{} {
 		"charmstoreURL":    url + "/charmstore/",
 		"identityURL":      url + "/identity/",
 		"paymentURL":       url + "/payment/",
-		"plansURL":         url + "/plans/",
+		"plansURL":         url + "/omnibus/",
 		"termsURL":         url + "/terms/",
 		baseURLKey:         "/",
 		// In all main GUI scenarios we can assume gisf to be true.
