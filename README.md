@@ -1,4 +1,5 @@
 [![GoDoc](https://godoc.org/github.com/juju/guiproxy?status.svg)](https://godoc.org/github.com/juju/guiproxy)
+[![Build Status](https://travis-ci.org/juju/guiproxy.svg?branch=master)](https://travis-ci.org/juju/guiproxy)
 
 # GUIProxy: a Juju GUI development tool
 
