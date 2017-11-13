@@ -211,7 +211,7 @@ func testGUIRedirect(serverURL *url.URL, baseURL string) func(c *qt.C) {
 		c.Assert(err, qt.Equals, nil)
 		content := string(b)
 		fragment := fmt.Sprintf("<a href=\"%s\">Moved Permanently</a>", baseURL)
-		c.Assert(strings.Contains(content, fragment), qt.Equals, true, "content:", content)
+		c.Assert(strings.Contains(content, fragment), qt.Equals, true, qt.Commentf("content: %q", content))
 	}
 }
 
@@ -259,7 +259,7 @@ func echoHandler(w http.ResponseWriter, req *http.Request) {
 	var msg jsonMessage
 	for {
 		err = conn.ReadJSON(&msg)
-		if err == io.EOF {
+		if websocket.IsUnexpectedCloseError(err) {
 			return
 		}
 		if err != nil {

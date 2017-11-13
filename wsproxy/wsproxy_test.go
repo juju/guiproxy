@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	qt "github.com/frankban/quicktest"
@@ -84,12 +85,10 @@ func pingHandler(w http.ResponseWriter, req *http.Request) {
 func newProxyHandler(srvURL string, conn1Log, conn2Log *logStorage) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		conn1 := upgrade(w, req)
-		defer conn1.Close()
 		conn2, _, err := websocket.DefaultDialer.Dial(srvURL, nil)
 		if err != nil {
 			panic(err)
 		}
-		defer conn2.Close()
 		if err := wsproxy.Copy(conn1, conn2, conn1Log, conn2Log); err != nil {
 			panic(err)
 		}
@@ -98,12 +97,15 @@ func newProxyHandler(srvURL string, conn1Log, conn2Log *logStorage) http.Handler
 
 // logStorage is a logger.Interface used for testing purposes.
 type logStorage struct {
+	sync.Mutex
 	messages []string
 }
 
 // Print implements logger.Interface and stores log messages.
 func (ls *logStorage) Print(msg string) {
+	ls.Lock()
 	ls.messages = append(ls.messages, msg)
+	ls.Unlock()
 }
 
 // wsURL returns a WebSocket URL from the given HTTP URL.

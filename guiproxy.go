@@ -63,7 +63,7 @@ func main() {
 	})
 
 	// Start the GUI proxy server.
-	log.Println("starting the server\n")
+	log.Print("starting the server\n\n")
 	printAddresses(options.port, options.baseURL)
 	if err := http.ListenAndServe(":"+strconv.Itoa(options.port), srv); err != nil {
 		log.Fatalf("cannot start server: %s", err)
