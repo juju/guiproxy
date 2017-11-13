@@ -44,7 +44,7 @@ func testTLSReverseProxy(path string, log logger.Interface) func(t *testing.T) {
 
 		// Logs are printed.
 		if log, ok := log.(*logCollector); ok {
-			c.Assert(len(log.messages), qt.Equals, 1)
+			c.Assert(log.messages, qt.HasLen, 1)
 			c.Assert(log.messages[0], qt.Equals, fmt.Sprintf("GET %s/my/path: 200 OK", target.URL))
 		}
 	}
@@ -130,7 +130,7 @@ func testRedirectHandler(path, expectedPath, to string, log logger.Interface) fu
 
 		// Logs are printed.
 		if log, ok := log.(*logCollector); ok {
-			c.Assert(len(log.messages), qt.Equals, 1)
+			c.Assert(log.messages, qt.HasLen, 1)
 			c.Assert(log.messages[0], qt.Equals, fmt.Sprintf("GET %s%s: 200 OK", target.URL, expectedPath))
 		}
 	}
