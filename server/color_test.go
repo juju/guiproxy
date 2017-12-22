@@ -10,6 +10,7 @@ import (
 
 func TestMkColor(t *testing.T) {
 	c := qt.New(t)
+	defer c.Cleanup()
 	f := server.MkColor(42)
 	msg := f("these are the voyages")
 	c.Assert(msg, qt.Equals, "\033[38;5;42mthese are the voyages\033[00m")

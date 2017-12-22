@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/websocket"
@@ -17,6 +18,7 @@ import (
 
 func TestCopy(t *testing.T) {
 	c := qt.New(t)
+	defer c.Cleanup()
 	// Set up a target WebSocket server.
 	ping := httptest.NewServer(http.HandlerFunc(pingHandler))
 	defer ping.Close()
@@ -46,6 +48,8 @@ func TestCopy(t *testing.T) {
 
 	// Incoming and outgoing WebSocket traffic has been logged.
 	assertLogs := func(ls *logStorage, expected ...string) {
+		// Wait for messages to be collected.
+		waitForMessages(ls, len(expected))
 		messages := make([]string, len(expected))
 		for i, content := range expected {
 			b, err := json.Marshal(jsonMessage{
@@ -54,10 +58,25 @@ func TestCopy(t *testing.T) {
 			c.Assert(err, qt.Equals, nil)
 			messages[i] = string(b)
 		}
-		c.Assert(messages, qt.DeepEquals, ls.messages)
+		c.Assert(ls.messages, qt.DeepEquals, messages)
 	}
 	assertLogs(conn1Log, "ping", "bad wolf")
 	assertLogs(conn2Log, "ping pong", "bad wolf pong")
+}
+
+func waitForMessages(ls *logStorage, expectedNum int) {
+	tick := time.Tick(100 * time.Millisecond)
+	timeout := time.After(1 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			return
+		case <-tick:
+			if len(ls.messages) == expectedNum {
+				return
+			}
+		}
+	}
 }
 
 // pingHandler is a WebSocket handler responding to pings.

@@ -240,9 +240,9 @@ var overridesTests = []struct {
 }}
 
 func TestOverrides(t *testing.T) {
+	c := qt.New(t)
 	for _, test := range overridesTests {
-		t.Run(test.about, func(t *testing.T) {
-			c := qt.New(t)
+		c.Run(test.about, func(c *qt.C) {
 			overrides := guiconfig.Overrides(test.env, test.flags, test.config)
 			c.Assert(overrides, qt.DeepEquals, test.expectedOverrides)
 		})
@@ -289,9 +289,9 @@ var getEnvironmentTests = []struct {
 }}
 
 func TestGetEnvironment(t *testing.T) {
+	c := qt.New(t)
 	for _, test := range getEnvironmentTests {
-		t.Run(test.about, func(t *testing.T) {
-			c := qt.New(t)
+		c.Run(test.about, func(c *qt.C) {
 			env, err := guiconfig.GetEnvironment(test.name)
 			if test.expectedError != "" {
 				c.Assert(err, qt.ErrorMatches, test.expectedError)
@@ -306,6 +306,7 @@ func TestGetEnvironment(t *testing.T) {
 }
 
 func TestBaseURL(t *testing.T) {
+	c := qt.New(t)
 	invalidRawMessage := json.RawMessage([]byte("bad wolf"))
 
 	tests := []struct {
@@ -403,8 +404,7 @@ func TestBaseURL(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		t.Run(test.about, func(t *testing.T) {
-			c := qt.New(t)
+		c.Run(test.about, func(c *qt.C) {
 			baseURL, err := guiconfig.BaseURL(test.overrides)
 			if test.expectedError != "" {
 				c.Assert(err, qt.ErrorMatches, test.expectedError)

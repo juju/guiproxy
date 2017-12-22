@@ -35,11 +35,10 @@ var addressesTests = []struct {
 }}
 
 func TestAddresses(t *testing.T) {
+	c := qt.New(t)
 	for _, test := range addressesTests {
-		t.Run(test.about, func(t *testing.T) {
-			c := qt.New(t)
-			restore := patchAddresses(test.addrs, test.err)
-			defer restore()
+		c.Run(test.about, func(c *qt.C) {
+			patchAddresses(c, test.addrs, test.err)
 			addrs, err := network.Addresses()
 			if test.err != nil {
 				c.Assert(err.Error(), qt.Equals, test.err.Error())
@@ -54,19 +53,14 @@ func TestAddresses(t *testing.T) {
 
 // patchAddresses patches the netInterfaceAddrs variable so that it is possible
 // to simulate network interfaces for the local machine.
-func patchAddresses(strAddrs []string, err error) (restore func()) {
-	original := *network.NetInterfaceAddrs
-	*network.NetInterfaceAddrs = func() ([]net.Addr, error) {
+func patchAddresses(c *qt.C, strAddrs []string, err error) {
+	c.Patch(network.NetInterfaceAddrs, func() ([]net.Addr, error) {
 		addrs := make([]net.Addr, len(strAddrs))
 		for i, strAddr := range strAddrs {
-			ip := net.ParseIP(strAddr)
 			addrs[i] = &net.IPNet{
-				IP: ip,
+				IP: net.ParseIP(strAddr),
 			}
 		}
 		return addrs, err
-	}
-	return func() {
-		*network.NetInterfaceAddrs = original
-	}
+	})
 }

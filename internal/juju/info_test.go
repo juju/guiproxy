@@ -14,6 +14,8 @@ import (
 )
 
 func TestInfo(t *testing.T) {
+	c := qt.New(t)
+
 	// Set up a test server.
 	ts := httptest.NewServer(newJujuServer())
 	serverURL := it.MustParseURL(t, ts.URL)
@@ -70,10 +72,8 @@ func TestInfo(t *testing.T) {
 
 	// Run the tests.
 	for _, test := range tests {
-		t.Run(test.about, func(t *testing.T) {
-			c := qt.New(t)
-			restore := patchCommand(c, []byte(test.commandOut), test.commandErr)
-			defer restore()
+		c.Run(test.about, func(c *qt.C) {
+			patchCommand(c, []byte(test.commandOut), test.commandErr)
 			controllerAddr, err := juju.Info(test.controllerAddr)
 			if test.expectedError != "" {
 				c.Assert(err, qt.ErrorMatches, test.expectedError)
@@ -97,16 +97,12 @@ func newJujuServer() http.Handler {
 
 // patchCommand patches the juju.ExecCommand variable so that it is possible
 // to simulate different output and error scenarios.
-func patchCommand(c *qt.C, out []byte, err error) (restore func()) {
-	original := *juju.ExecCommand
-	*juju.ExecCommand = func(name string, args ...string) ([]byte, error) {
+func patchCommand(c *qt.C, out []byte, err error) {
+	c.Patch(juju.ExecCommand, func(name string, args ...string) ([]byte, error) {
 		c.Assert(name, qt.Equals, "juju")
 		c.Assert(args, qt.DeepEquals, []string{"show-controller", "--format", "json"})
 		return out, err
-	}
-	return func() {
-		*juju.ExecCommand = original
-	}
+	})
 }
 
 // makeControllerInfo creates and returns a controller info output with the
