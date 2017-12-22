@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	qt "github.com/frankban/quicktest"
 	"github.com/gorilla/websocket"
@@ -47,6 +48,20 @@ func TestCopy(t *testing.T) {
 
 	// Incoming and outgoing WebSocket traffic has been logged.
 	assertLogs := func(ls *logStorage, expected ...string) {
+		// Wait for messages to be collected.
+		tick := time.Tick(100 * time.Millisecond)
+		timeout := time.After(1 * time.Second)
+	loop:
+		for {
+			select {
+			case <-timeout:
+				break loop
+			case <-tick:
+				if len(ls.messages) == len(expected) {
+					break loop
+				}
+			}
+		}
 		messages := make([]string, len(expected))
 		for i, content := range expected {
 			b, err := json.Marshal(jsonMessage{
@@ -55,7 +70,7 @@ func TestCopy(t *testing.T) {
 			c.Assert(err, qt.Equals, nil)
 			messages[i] = string(b)
 		}
-		c.Assert(messages, qt.DeepEquals, ls.messages)
+		c.Assert(ls.messages, qt.DeepEquals, messages)
 	}
 	assertLogs(conn1Log, "ping", "bad wolf")
 	assertLogs(conn2Log, "ping pong", "bad wolf pong")
