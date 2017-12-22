@@ -49,19 +49,7 @@ func TestCopy(t *testing.T) {
 	// Incoming and outgoing WebSocket traffic has been logged.
 	assertLogs := func(ls *logStorage, expected ...string) {
 		// Wait for messages to be collected.
-		tick := time.Tick(100 * time.Millisecond)
-		timeout := time.After(1 * time.Second)
-	loop:
-		for {
-			select {
-			case <-timeout:
-				break loop
-			case <-tick:
-				if len(ls.messages) == len(expected) {
-					break loop
-				}
-			}
-		}
+		waitForMessages(ls, len(expected))
 		messages := make([]string, len(expected))
 		for i, content := range expected {
 			b, err := json.Marshal(jsonMessage{
@@ -74,6 +62,21 @@ func TestCopy(t *testing.T) {
 	}
 	assertLogs(conn1Log, "ping", "bad wolf")
 	assertLogs(conn2Log, "ping pong", "bad wolf pong")
+}
+
+func waitForMessages(ls *logStorage, expectedNum int) {
+	tick := time.Tick(100 * time.Millisecond)
+	timeout := time.After(1 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			return
+		case <-tick:
+			if len(ls.messages) == expectedNum {
+				return
+			}
+		}
+	}
 }
 
 // pingHandler is a WebSocket handler responding to pings.
