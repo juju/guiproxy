@@ -17,6 +17,7 @@ import (
 
 func TestCopy(t *testing.T) {
 	c := qt.New(t)
+	defer c.Cleanup()
 	// Set up a target WebSocket server.
 	ping := httptest.NewServer(http.HandlerFunc(pingHandler))
 	defer ping.Close()

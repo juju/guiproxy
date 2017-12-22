@@ -39,6 +39,7 @@ func TestNilModifiers(t *testing.T) {
 
 func TestAddPrefix(t *testing.T) {
 	c := qt.New(t)
+	defer c.Cleanup()
 	f := logger.AddPrefix(">>> answer")
 	c.Assert(f("42"), qt.Equals, ">>> answer: 42")
 }

@@ -20,6 +20,7 @@ import (
 
 func TestNew(t *testing.T) {
 	c := qt.New(t)
+	defer c.Cleanup()
 	// Set up test servers.
 	gui := httptest.NewServer(newGUIServer())
 	defer gui.Close()
