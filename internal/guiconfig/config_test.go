@@ -96,7 +96,7 @@ var overridesTests = []struct {
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
-		"identityURL":      "https://api.jujucharms.com/identity/",
+		"jujushellURL":     "wss://shell.jujugui.org/ws/",
 		"paymentURL":       "https://api.jujucharms.com/payment/",
 		"plansURL":         "https://api.jujucharms.com/omnibus/",
 		"ratesURL":         "https://api.jujucharms.com/omnibus/",
@@ -110,7 +110,7 @@ var overridesTests = []struct {
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.staging.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.staging.jujucharms.com/charmstore/",
-		"identityURL":      "https://api.staging.jujucharms.com/identity/",
+		"jujushellURL":     "wss://shell.staging.jujugui.org/ws/",
 		"paymentURL":       "https://api.staging.jujucharms.com/payment/",
 		"plansURL":         "https://api.staging.jujucharms.com/omnibus/",
 		"ratesURL":         "https://api.staging.jujucharms.com/omnibus/",
@@ -124,7 +124,6 @@ var overridesTests = []struct {
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://www.jujugui.org/bundleservice/",
 		"charmstoreURL":    "https://www.jujugui.org/charmstore/",
-		"identityURL":      "https://www.jujugui.org/identity/",
 		"paymentURL":       "https://www.jujugui.org/payment/",
 		"plansURL":         "https://www.jujugui.org/omnibus/",
 		"ratesURL":         "https://www.jujugui.org/omnibus/",
@@ -191,7 +190,7 @@ var overridesTests = []struct {
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://api.jujucharms.com/charmstore/",
-		"identityURL":      "https://api.jujucharms.com/identity/",
+		"jujushellURL":     "wss://shell.jujugui.org/ws/",
 		"paymentURL":       "https://api.jujucharms.com/payment/",
 		"plansURL":         "https://api.jujucharms.com/omnibus/",
 		"ratesURL":         "https://api.jujucharms.com/omnibus/",
@@ -228,7 +227,7 @@ var overridesTests = []struct {
 	expectedOverrides: map[string]interface{}{
 		"bundleServiceURL": "https://api.jujucharms.com/bundleservice/",
 		"charmstoreURL":    "https://1.2.3.4/cs/",
-		"identityURL":      "https://api.jujucharms.com/identity/",
+		"jujushellURL":     "wss://shell.jujugui.org/ws/",
 		"paymentURL":       "https://api.jujucharms.com/payment/",
 		"plansURL":         "https://api.jujucharms.com/omnibus/",
 		"ratesURL":         "https://api.jujucharms.com/omnibus/",
