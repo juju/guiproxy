@@ -34,7 +34,7 @@ func New(ctx Context, overrides map[string]interface{}) string {
 		"consoleEnabled":           true,
 		"serverRouting":            false,
 	}
-	for k, v := range envOverrides(productionBaseURL) {
+	for k, v := range envOverrides(productionBaseURL, nil) {
 		if _, found := cfg[k]; !found {
 			cfg[k] = v
 		}
@@ -121,17 +121,21 @@ var Environments = []Environment{{
 	Name:           "production",
 	ControllerAddr: "jimm.jujucharms.com:443",
 	aliases:        []string{"prod"},
-	overrides:      envOverrides(productionBaseURL),
+	overrides: envOverrides(productionBaseURL, map[string]interface{}{
+		"jujushellURL": "wss://shell.jujugui.org/ws/",
+	}),
 }, {
 	Name:           "staging",
 	ControllerAddr: "jimm.staging.jujucharms.com:443",
 	aliases:        []string{"stage"},
-	overrides:      envOverrides("https://api.staging.jujucharms.com"),
+	overrides: envOverrides("https://api.staging.jujucharms.com", map[string]interface{}{
+		"jujushellURL": "wss://shell.staging.jujugui.org/ws/",
+	}),
 }, {
 	Name:           "qa",
 	ControllerAddr: "jimm.jujugui.org:443",
 	aliases:        []string{"brian", "bruce"},
-	overrides:      envOverrides("https://www.jujugui.org"),
+	overrides:      envOverrides("https://www.jujugui.org", nil),
 }}
 
 // Environment holds information about an environment in which the GUI can be
@@ -157,13 +161,13 @@ func (env Environment) String() string {
 }
 
 // envOverrides appends URL paths to the base URL provided, resulting in a map
-// that can be used to override the default configuration.
-func envOverrides(url string) map[string]interface{} {
+// that also includes initial values and can be used to override the default
+// configuration.
+func envOverrides(url string, initial map[string]interface{}) map[string]interface{} {
 	url = strings.TrimRight(url, "/")
-	return map[string]interface{}{
+	overrides := map[string]interface{}{
 		"bundleServiceURL": url + "/bundleservice/",
 		"charmstoreURL":    url + "/charmstore/",
-		"identityURL":      url + "/identity/",
 		"paymentURL":       url + "/payment/",
 		"plansURL":         url + "/omnibus/",
 		"ratesURL":         url + "/omnibus/",
@@ -172,6 +176,10 @@ func envOverrides(url string) map[string]interface{} {
 		// In all main GUI scenarios we can assume gisf to be true.
 		"gisf": true,
 	}
+	for k, v := range initial {
+		overrides[k] = v
+	}
+	return overrides
 }
 
 // BaseURL returns the base URL from which the GUI is served by the proxy.
