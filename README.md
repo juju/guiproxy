@@ -14,9 +14,15 @@ Run `go get github.com/juju/guiproxy`.
 
 ## Usage
 
-- Start a development Juju GUI branch in sandbox mode, by running `make run`.
+- Start a development Juju GUI branch in sandbox mode, by running `make run` in
+  the GUI branch you want to use.
 - Switch to the Juju controller you want to connect the GUI to.
-- Run `guiproxy` and point your browser to the link suggested by the server.
+- In another terminal tab, run `guiproxy`: this command will start the GUIProxy
+  server and will output a list of URLs that can be used to access the GUI.
+- Point your browser to one of the URLs above (from the `guiproxy` output).
 - Enjoy!
 
 Run `guiproxy -h` for instructions on how to customize the GUI proxy server.
+For instance it is possible to point GUIProxy to JAAS by running
+`guiproxy -env prod`, in which case you don't need to bootstrap any additional
+controllers. Also, the `-flags` parameter can be used to enable feature flags.
